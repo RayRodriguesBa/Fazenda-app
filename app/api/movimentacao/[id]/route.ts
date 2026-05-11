@@ -10,7 +10,7 @@ export async function PUT(
     const { id } = await params
     const {
       data, lote_id, piquete_id, tipo_operacao,
-      quantidade, qualidade, observacao,
+      qualidade, observacao,
       altura1, altura2, altura3, altura4, altura5,
     } = await request.json()
 
@@ -25,12 +25,6 @@ export async function PUT(
       return NextResponse.json({ error: 'Tipo inválido' }, { status: 400 })
     }
 
-    if (tipo_operacao === 'Entrada' && (quantidade == null || quantidade === '')) {
-      return NextResponse.json(
-        { error: 'Quantidade é obrigatória para Entrada' },
-        { status: 400 }
-      )
-    }
 
     const alturas = [altura1, altura2, altura3, altura4, altura5]
     const alturasPreenchidas = alturas.filter((a) => a != null && a !== '')
@@ -58,7 +52,6 @@ export async function PUT(
         lote_id,
         piquete_id,
         tipo_operacao,
-        quantidade: quantidade ? Number(quantidade) : null,
         qualidade: qualidade || null,
         observacao: observacao?.trim() || null,
         altura1: altura1 ? Number(altura1) : null,

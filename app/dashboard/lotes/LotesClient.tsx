@@ -12,11 +12,22 @@ export type Lote = {
   ativo: boolean
 }
 
+export type Forrageira = 'Sempre_verde' | 'Marandu' | 'Bengo' | 'Grama' | 'Decumbens'
+
+export const FORRAGEIRA_LABEL: Record<Forrageira, string> = {
+  Sempre_verde: 'Sempre_verde',
+  Marandu: 'Marandu',
+  Bengo: 'Bengo',
+  Grama: 'Grama',
+  Decumbens: 'Decumbens',
+}
+
 export type Piquete = {
   id: string
   nome: string
   area_ha: number | null
   aproveitamento_pasto: number | null
+  forrageira: Forrageira | null
   ativo: boolean
 }
 
@@ -58,8 +69,8 @@ function LoteForm({
         peso_medio_kg: campos.peso_medio_kg || null,
         ativo: campos.ativo,
       })
-    } catch {
-      setErro('Erro ao salvar. Tente novamente.')
+    } catch (e: unknown) {
+      setErro(e instanceof Error ? e.message : 'Erro ao salvar. Tente novamente.')
     } finally {
       setLoading(false)
     }
@@ -193,6 +204,7 @@ function PiqueteForm({
     nome: inicial?.nome ?? '',
     area_ha: inicial?.area_ha?.toString() ?? '',
     aproveitamento_pasto: inicial?.aproveitamento_pasto?.toString() ?? '',
+    forrageira: inicial?.forrageira ?? '' as Forrageira | '',
     ativo: inicial?.ativo ?? true,
   })
   const [loading, setLoading] = useState(false)
@@ -209,10 +221,11 @@ function PiqueteForm({
         nome: campos.nome,
         area_ha: campos.area_ha || null,
         aproveitamento_pasto: campos.aproveitamento_pasto || null,
+        forrageira: campos.forrageira || null,
         ativo: campos.ativo,
       })
-    } catch {
-      setErro('Erro ao salvar. Tente novamente.')
+    } catch (e: unknown) {
+      setErro(e instanceof Error ? e.message : 'Erro ao salvar. Tente novamente.')
     } finally {
       setLoading(false)
     }
@@ -269,6 +282,23 @@ function PiqueteForm({
             disabled={loading}
             className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg font-poppins text-sm focus:outline-none focus:border-[var(--primary)] disabled:bg-gray-100 transition"
           />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-[var(--text)] mb-1 font-poppins">
+            Forrageira
+          </label>
+          <select
+            value={campos.forrageira}
+            onChange={(e) => setCampos({ ...campos, forrageira: e.target.value as Forrageira | '' })}
+            disabled={loading}
+            className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg font-poppins text-sm focus:outline-none focus:border-[var(--primary)] disabled:bg-gray-100 transition bg-white"
+          >
+            <option value="">Não informada</option>
+            {(Object.entries(FORRAGEIRA_LABEL) as [Forrageira, string][]).map(([valor, label]) => (
+              <option key={valor} value={valor}>{label}</option>
+            ))}
+          </select>
         </div>
 
         {inicial && (
@@ -581,6 +611,11 @@ export default function LotesClient({
                             {piquete.area_ha != null && piquete.aproveitamento_pasto != null && (
                               <span className="text-xs text-gray-600 font-poppins block">
                                 🎯 {((piquete.area_ha * piquete.aproveitamento_pasto) / 100).toFixed(1)} ha útil
+                              </span>
+                            )}
+                            {piquete.forrageira && (
+                              <span className="text-xs text-gray-600 font-poppins block">
+                                🌾 {FORRAGEIRA_LABEL[piquete.forrageira]}
                               </span>
                             )}
                           </div>

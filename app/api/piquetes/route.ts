@@ -4,7 +4,7 @@ import { cookies } from 'next/headers'
 
 export async function POST(request: NextRequest) {
   try {
-    const { nome, area_ha, aproveitamento_pasto } = await request.json()
+    const { nome, area_ha, aproveitamento_pasto, forrageira } = await request.json()
 
     if (!nome?.trim()) {
       return NextResponse.json({ error: 'Nome é obrigatório' }, { status: 400 })
@@ -34,12 +34,13 @@ export async function POST(request: NextRequest) {
       nome: nome.trim(),
       area_ha: area_ha ? Number(area_ha) : null,
       aproveitamento_pasto: aproveitamento_pasto ? Number(aproveitamento_pasto) : null,
+      forrageira: forrageira || null,
       fazenda_id,
     })
 
     if (error) {
       console.error('Supabase error:', error)
-      return NextResponse.json({ error: 'Erro ao salvar piquete' }, { status: 500 })
+      return NextResponse.json({ error: error.message || 'Erro ao salvar piquete' }, { status: 500 })
     }
 
     return NextResponse.json({ success: true }, { status: 201 })

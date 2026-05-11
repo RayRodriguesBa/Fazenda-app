@@ -10,7 +10,6 @@ export async function POST(request: NextRequest) {
       lote_id,
       piquete_id,
       tipo_operacao,
-      quantidade,
       qualidade,
       observacao,
       altura1,
@@ -32,13 +31,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Tipo inválido' }, { status: 400 })
     }
 
-    // Constraint: entrada_exige_quantidade
-    if (tipo_operacao === 'Entrada' && (quantidade == null || quantidade === '')) {
-      return NextResponse.json(
-        { error: 'Quantidade é obrigatória para Entrada' },
-        { status: 400 }
-      )
-    }
 
     // Alturas opcional, mas se preencher 1, tem que preencher as 5 (tudo ou nada)
     const alturas = [altura1, altura2, altura3, altura4, altura5]
@@ -65,7 +57,6 @@ export async function POST(request: NextRequest) {
       lote_id,
       piquete_id,
       tipo_operacao,
-      quantidade: quantidade ? Number(quantidade) : null,
       qualidade: qualidade || null,
       observacao: observacao?.trim() || null,
       altura1: altura1 ? Number(altura1) : null,

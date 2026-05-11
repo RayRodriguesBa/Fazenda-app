@@ -32,7 +32,7 @@ export default async function LotesPage() {
         .order('nome'),
       supabase
         .from('piquete')
-        .select('id, nome, area_ha, aproveitamento_pasto, ativo')
+        .select('id, nome, area_ha, aproveitamento_pasto, forrageira, ativo')
         .eq('fazenda_id', fazendaId)
         .order('nome'),
     ])

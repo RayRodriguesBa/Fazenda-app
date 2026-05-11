@@ -1,8 +1,15 @@
 import { createClient } from '@/app/lib/supabase/server'
 import { cookies } from 'next/headers'
-import MovimentacaoClient, { Movimentacao } from './MovimentacaoClient'
+import MovimentacaoClient, { Movimentacao, type PiqueteDescanso } from './MovimentacaoClient'
 
-export default async function MovimentacaoPage() {
+export default async function MovimentacaoPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ de?: string; ate?: string }>
+}) {
+  const params = await searchParams
+  const de = params.de
+  const ate = params.ate
   const supabase = await createClient()
 
   const cookieStore = await cookies()
@@ -28,12 +35,17 @@ export default async function MovimentacaoPage() {
         .eq('ativo', true)
         .eq('fazenda_id', fazendaId)
         .order('nome'),
-      supabase
-        .from('movimentacao_gado')
-        .select('id, data, tipo_operacao, quantidade, qualidade, media_altura, altura1, altura2, altura3, altura4, altura5, observacao, lote_id, piquete_id, lote(nome), piquete(nome)')
-        .eq('fazenda_id', fazendaId)
-        .order('data', { ascending: false })
-        .limit(50),
+      (() => {
+        let q = supabase
+          .from('movimentacao_gado')
+          .select('id, data, tipo_operacao, qualidade, media_altura, altura1, altura2, altura3, altura4, altura5, observacao, lote_id, piquete_id, lote(nome), piquete(nome)')
+          .eq('fazenda_id', fazendaId)
+          .order('data', { ascending: false })
+        if (de) q = q.gte('data', de)
+        if (ate) q = q.lte('data', ate)
+        else q = q.limit(50)
+        return q
+      })(),
       supabase
         .from('movimentacao_gado')
         .select('lote_id, piquete_id, tipo_operacao, data, created_at')
@@ -66,6 +78,24 @@ export default async function MovimentacaoPage() {
     }
   }
 
+  // Última movimentação por piquete (para ranking de descanso)
+  const ultimaMovPorPiquete: Record<string, { data: string; tipo_operacao: string }> = {}
+  for (const mov of historico ?? []) {
+    if (!ultimaMovPorPiquete[mov.piquete_id]) {
+      ultimaMovPorPiquete[mov.piquete_id] = { data: mov.data, tipo_operacao: mov.tipo_operacao }
+    }
+  }
+
+  const hoje = new Date()
+  const rankingDescanso: PiqueteDescanso[] = piquetes
+    .filter((p) => ultimaMovPorPiquete[p.id]?.tipo_operacao === 'Saída')
+    .map((p) => {
+      const dataUlm = new Date(ultimaMovPorPiquete[p.id].data)
+      const diasDescanso = Math.floor((hoje.getTime() - dataUlm.getTime()) / (1000 * 60 * 60 * 24))
+      return { piquete_id: p.id, nome: p.nome, diasDescanso }
+    })
+    .sort((a, b) => b.diasDescanso - a.diasDescanso)
+
   return (
     <div>
       <div className="mb-6">
@@ -83,6 +113,9 @@ export default async function MovimentacaoPage() {
         piquetes={piquetes}
         piqueteAtualPorLote={piqueteAtualPorLote}
         piquetesOcupados={Array.from(piquetesOcupados)}
+        rankingDescanso={rankingDescanso}
+        de={de}
+        ate={ate}
       />
     </div>
   )
