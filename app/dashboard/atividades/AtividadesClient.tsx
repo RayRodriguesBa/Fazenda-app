@@ -1,20 +1,25 @@
-'use client'
+﻿'use client'
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+
+export type AtividadeProduto = {
+  id: string
+  produto_id: string
+  produto: { nome: string } | null
+  volume: number | null
+  unidade: string | null
+  quantidade_unidade: number | null
+}
 
 export type Atividade = {
   id: string
   data: string
   tipo: 'Adubação' | 'Herbicida' | 'Roçagem'
   modalidade: string
-  produto_id: string | null
-  produto: { nome: string } | null
   piquete_id: string
   piquete: { nome: string } | null
-  quantidade_unidade: number | null
-  volume: number | null
-  unidade: string | null
+  produtos: AtividadeProduto[]
   observacao: string | null
 }
 
@@ -24,8 +29,8 @@ type TipoAtividade = 'Adubação' | 'Herbicida' | 'Roçagem'
 
 const MODALIDADES: Record<TipoAtividade, string[]> = {
   Adubação: ['Manual', 'Trator'],
-  Herbicida: ['Costal', 'Stihl', 'Trator'],
-  Roçagem: ['Foice', 'Roçadeira', 'Enxada'],
+  Herbicida: ['Manual', 'Trator'],
+  Roçagem: ['Manual', 'Trator'],
 }
 
 const UNIDADES: Record<string, string[]> = {
@@ -59,17 +64,140 @@ function formatarData(dataISO: string) {
   return `${dia}/${mes}/${ano}`
 }
 
+type ProdutoFormItem = {
+  key: number
+  produto_id: string
+  volume: string
+  unidade: string
+  quantidade_unidade: string
+}
+
 type FormPayload = {
   data: string
   tipo: TipoAtividade
   modalidade: string
-  produto_id: string | null
   piquete_id: string
-  quantidade_unidade: number | null
-  volume: number | null
-  unidade: string | null
+  produtos: { produto_id: string; volume: number | null; unidade: string | null; quantidade_unidade: number | null }[]
   observacao: string | null
 }
+
+function ProdutoRow({
+  item,
+  tipo,
+  produtosDisponiveis,
+  disabled,
+  onChange,
+  onRemove,
+  showRemove,
+}: {
+  item: ProdutoFormItem
+  tipo: TipoAtividade
+  produtosDisponiveis: { id: string; nome: string; categoria: string }[]
+  disabled: boolean
+  onChange: (updated: ProdutoFormItem) => void
+  onRemove: () => void
+  showRemove: boolean
+}) {
+  const temUnidade = tipo === 'Adubação' || tipo === 'Herbicida'
+  const unidades = UNIDADES[tipo] || []
+  const volumeOpcoes = tipo && item.unidade ? (VOLUME_OPCOES[`${tipo}-${item.unidade}`] ?? null) : null
+  const exigeQtd = temUnidade && (item.unidade === 'Sacos' || item.unidade === 'Baldes')
+
+  return (
+    <div className="bg-gray-50 rounded-lg p-3 border border-gray-200 space-y-3">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold text-gray-500 font-poppins uppercase tracking-wide">Produto</span>
+        {showRemove && (
+          <button type="button" onClick={onRemove} disabled={disabled} className="text-xs text-[var(--error)] font-poppins hover:underline disabled:opacity-50">
+            ✕ Remover
+          </button>
+        )}
+      </div>
+      <select
+        value={item.produto_id}
+        onChange={(e) => onChange({ ...item, produto_id: e.target.value })}
+        disabled={disabled}
+        className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg font-poppins text-sm focus:outline-none focus:border-[var(--primary)] disabled:bg-gray-100 transition bg-white"
+      >
+        <option value="">Selecione o produto...</option>
+        {produtosDisponiveis.filter(p => p.categoria === tipo).map((p) => (
+          <option key={p.id} value={p.id}>{p.nome}</option>
+        ))}
+      </select>
+
+      {temUnidade && (
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1 font-poppins">Unidade *</label>
+            <div className="flex gap-1.5">
+              {unidades.map((u) => (
+                <button
+                  key={u}
+                  type="button"
+                  onClick={() => onChange({ ...item, unidade: u, volume: '', quantidade_unidade: '' })}
+                  disabled={disabled}
+                  className={`flex-1 px-2 py-1.5 rounded-lg font-poppins text-xs border-2 transition-colors ${
+                    item.unidade === u
+                      ? 'bg-[var(--accent)] border-[var(--accent)] text-white font-semibold'
+                      : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
+                  }`}
+                >
+                  {u}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1 font-poppins">Volume *</label>
+            {volumeOpcoes ? (
+              <select
+                value={item.volume}
+                onChange={(e) => onChange({ ...item, volume: e.target.value })}
+                disabled={disabled}
+                className="w-full px-2 py-1.5 border-2 border-gray-200 rounded-lg font-poppins text-xs focus:outline-none focus:border-[var(--primary)] disabled:bg-gray-100 transition bg-white"
+              >
+                <option value="">Selecione...</option>
+                {volumeOpcoes.map((v) => (
+                  <option key={v} value={v}>{v}</option>
+                ))}
+              </select>
+            ) : (
+              <input
+                type="number"
+                value={item.volume}
+                onChange={(e) => onChange({ ...item, volume: e.target.value })}
+                placeholder="Qtd."
+                min="0"
+                step="0.1"
+                disabled={disabled}
+                className="w-full px-2 py-1.5 border-2 border-gray-200 rounded-lg font-poppins text-xs focus:outline-none focus:border-[var(--primary)] disabled:bg-gray-100 transition"
+              />
+            )}
+          </div>
+          {exigeQtd && (
+            <div className="col-span-2">
+              <label className="block text-xs font-medium text-gray-600 mb-1 font-poppins">
+                Quantidade ({item.unidade}) *
+              </label>
+              <input
+                type="number"
+                value={item.quantidade_unidade}
+                onChange={(e) => onChange({ ...item, quantidade_unidade: e.target.value })}
+                placeholder={`Quantos ${item.unidade?.toLowerCase()}?`}
+                min="0"
+                disabled={disabled}
+                className="w-full px-2 py-1.5 border-2 border-gray-200 rounded-lg font-poppins text-xs focus:outline-none focus:border-[var(--primary)] disabled:bg-gray-100 transition"
+              />
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+let _keyCounter = 0
+function nextKey() { return ++_keyCounter }
 
 function AtividadeForm({
   modo,
@@ -94,40 +222,69 @@ function AtividadeForm({
   const [piqueteId, setPiqueteId] = useState(inicial?.piquete_id ?? '')
   const [tipo, setTipo] = useState<TipoAtividade | ''>(inicial?.tipo ?? '')
   const [modalidade, setModalidade] = useState(inicial?.modalidade ?? '')
-  const [produtoId, setProdutoId] = useState(inicial?.produto_id ?? '')
-  const [quantidadeUnidade, setQuantidadeUnidade] = useState(inicial?.quantidade_unidade?.toString() ?? '')
-  const [volume, setVolume] = useState(inicial?.volume?.toString() ?? '')
-  const [unidade, setUnidade] = useState(inicial?.unidade ?? '')
   const [observacao, setObservacao] = useState(inicial?.observacao ?? '')
+
+  const buildInitialProdutos = (): ProdutoFormItem[] => {
+    if (inicial && inicial.produtos.length > 0) {
+      return inicial.produtos.map(p => ({
+        key: nextKey(),
+        produto_id: p.produto_id,
+        volume: p.volume?.toString() ?? '',
+        unidade: p.unidade ?? '',
+        quantidade_unidade: p.quantidade_unidade?.toString() ?? '',
+      }))
+    }
+    return [{ key: nextKey(), produto_id: '', volume: '', unidade: '', quantidade_unidade: '' }]
+  }
+
+  const [produtosList, setProdutosList] = useState<ProdutoFormItem[]>(buildInitialProdutos)
 
   const [loading, setLoading] = useState(false)
   const [excluindo, setExcluindo] = useState(false)
   const [confirmarExclusao, setConfirmarExclusao] = useState(false)
   const [erro, setErro] = useState('')
 
-  const volumeOpcoes = tipo && unidade ? (VOLUME_OPCOES[`${tipo}-${unidade}`] ?? null) : null
-
-  const temProduto = tipo === 'Herbicida' || tipo === 'Roçagem'
+  const temProduto = tipo === 'Herbicida' || tipo === 'Adubação'
   const produtoObrigatorio = tipo === 'Herbicida'
   const temUnidade = tipo === 'Adubação' || tipo === 'Herbicida'
-  const exigeQuantidadeUnidade = temUnidade && (unidade === 'Sacos' || unidade === 'Baldes')
+
+  const isProdutosValido = () => {
+    if (!temProduto) return true
+    if (produtoObrigatorio && produtosList.every(p => !p.produto_id)) return false
+    const preenchidos = produtosList.filter(p => p.produto_id)
+    if (produtoObrigatorio && preenchidos.length === 0) return false
+    for (const p of preenchidos) {
+      if (temUnidade) {
+        if (!p.unidade || !p.volume) return false
+        if ((p.unidade === 'Sacos' || p.unidade === 'Baldes') && !p.quantidade_unidade) return false
+      }
+    }
+    return true
+  }
 
   const isValido =
     data !== '' &&
     piqueteId !== '' &&
     tipo !== '' &&
     modalidade !== '' &&
-    (!produtoObrigatorio || produtoId !== '') &&
-    (!temUnidade || (unidade !== '' && volume !== '')) &&
-    (!exigeQuantidadeUnidade || quantidadeUnidade !== '')
+    isProdutosValido()
 
   const handleTipo = (t: TipoAtividade) => {
     setTipo(t)
     setModalidade('')
-    setProdutoId('')
-    setQuantidadeUnidade('')
-    setVolume('')
-    setUnidade('')
+    setProdutosList([{ key: nextKey(), produto_id: '', volume: '', unidade: '', quantidade_unidade: '' }])
+  }
+
+  const addProduto = () => {
+    setProdutosList(prev => [...prev, { key: nextKey(), produto_id: '', volume: '', unidade: '', quantidade_unidade: '' }])
+  }
+
+  const removeProduto = (key: number) => {
+    setProdutosList(prev => prev.filter(p => p.key !== key))
+  }
+
+  const updateProduto = (key: number, updated: ProdutoFormItem) => {
+    setProdutosList(prev => prev.map(p => p.key === key ? updated : p))
   }
 
   const handleSalvar = async () => {
@@ -135,15 +292,20 @@ function AtividadeForm({
     setLoading(true)
     setErro('')
     try {
+      const prods = temProduto
+        ? produtosList.filter(p => p.produto_id).map(p => ({
+            produto_id: p.produto_id,
+            volume: temUnidade && p.volume ? Number(p.volume) : null,
+            unidade: temUnidade && p.unidade ? p.unidade : null,
+            quantidade_unidade: temUnidade && (p.unidade === 'Sacos' || p.unidade === 'Baldes') && p.quantidade_unidade ? Number(p.quantidade_unidade) : null,
+          }))
+        : []
       await onSalvar({
         data,
         piquete_id: piqueteId,
         tipo,
         modalidade,
-        produto_id: temProduto && produtoId ? produtoId : null,
-        quantidade_unidade: exigeQuantidadeUnidade && quantidadeUnidade ? Number(quantidadeUnidade) : null,
-        volume: temUnidade && volume ? Number(volume) : null,
-        unidade: temUnidade && unidade ? unidade : null,
+        produtos: prods,
         observacao: observacao.trim() || null,
       })
     } catch (e: unknown) {
@@ -260,100 +422,40 @@ function AtividadeForm({
           </div>
         )}
 
-        {/* Produto */}
+        {/* Produtos (somente Adubação e Herbicida) */}
         {temProduto && (
           <div>
-            <label className="block text-sm font-medium text-[var(--text)] mb-1 font-poppins">
-              Produto{' '}
-              {produtoObrigatorio
-                ? <span className="text-[var(--error)]">*</span>
-                : <span className="text-gray-400 font-normal">(opcional)</span>
-              }
-            </label>
-            <select
-              value={produtoId}
-              onChange={(e) => setProdutoId(e.target.value)}
-              disabled={loading || excluindo}
-              className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg font-poppins text-sm focus:outline-none focus:border-[var(--primary)] disabled:bg-gray-100 transition bg-white"
-            >
-              <option value="">Selecione...</option>
-              {produtos.filter(p => p.categoria === tipo).map((p) => (
-                <option key={p.id} value={p.id}>{p.nome}</option>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-sm font-medium text-[var(--text)] font-poppins">
+                Produtos{' '}
+                {produtoObrigatorio
+                  ? <span className="text-[var(--error)]">*</span>
+                  : <span className="text-gray-400 font-normal">(opcional)</span>
+                }
+              </label>
+              <button
+                type="button"
+                onClick={addProduto}
+                disabled={loading || excluindo}
+                className="text-xs font-semibold text-[var(--primary)] font-poppins hover:underline disabled:opacity-50"
+              >
+                + Adicionar produto
+              </button>
+            </div>
+            <div className="space-y-2">
+              {produtosList.map((item) => (
+                <ProdutoRow
+                  key={item.key}
+                  item={item}
+                  tipo={tipo as TipoAtividade}
+                  produtosDisponiveis={produtos}
+                  disabled={loading || excluindo}
+                  onChange={(updated) => updateProduto(item.key, updated)}
+                  onRemove={() => removeProduto(item.key)}
+                  showRemove={produtosList.length > 1}
+                />
               ))}
-            </select>
-          </div>
-        )}
-
-        {/* Unidade + Volume */}
-        {temUnidade && (
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-[var(--text)] mb-2 font-poppins">
-                Unidade <span className="text-[var(--error)]">*</span>
-              </label>
-              <div className="flex gap-2">
-                {UNIDADES[tipo].map((u) => (
-                  <button
-                    key={u}
-                    type="button"
-                    onClick={() => { setUnidade(u); setVolume(''); setQuantidadeUnidade('') }}
-                    disabled={loading || excluindo}
-                    className={`flex-1 px-3 py-2 rounded-lg font-poppins text-sm border-2 transition-colors ${
-                      unidade === u
-                        ? 'bg-[var(--accent)] border-[var(--accent)] text-white font-semibold'
-                        : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
-                    }`}
-                  >
-                    {u}
-                  </button>
-                ))}
-              </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-[var(--text)] mb-1 font-poppins">
-                Volume <span className="text-[var(--error)]">*</span>
-              </label>
-              {volumeOpcoes ? (
-                <select
-                  value={volume}
-                  onChange={(e) => setVolume(e.target.value)}
-                  disabled={loading || excluindo}
-                  className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg font-poppins text-sm focus:outline-none focus:border-[var(--primary)] disabled:bg-gray-100 transition bg-white"
-                >
-                  <option value="">Selecione...</option>
-                  {volumeOpcoes.map((v) => (
-                    <option key={v} value={v}>{v}</option>
-                  ))}
-                </select>
-              ) : (
-                <input
-                  type="number"
-                  value={volume}
-                  onChange={(e) => setVolume(e.target.value)}
-                  placeholder="Qtd."
-                  min="0"
-                  step="0.1"
-                  disabled={loading || excluindo}
-                  className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg font-poppins text-sm focus:outline-none focus:border-[var(--primary)] disabled:bg-gray-100 transition"
-                />
-              )}
-            </div>
-            {exigeQuantidadeUnidade && (
-              <div className="col-span-2 sm:col-span-1">
-                <label className="block text-sm font-medium text-[var(--text)] mb-1 font-poppins">
-                  Quantidade ({unidade}) <span className="text-[var(--error)]">*</span>
-                </label>
-                <input
-                  type="number"
-                  value={quantidadeUnidade}
-                  onChange={(e) => setQuantidadeUnidade(e.target.value)}
-                  placeholder={`Quantos ${unidade?.toLowerCase()}?`}
-                  min="0"
-                  disabled={loading || excluindo}
-                  className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg font-poppins text-sm focus:outline-none focus:border-[var(--primary)] disabled:bg-gray-100 transition"
-                />
-              </div>
-            )}
           </div>
         )}
 
@@ -507,19 +609,18 @@ export default function AtividadesClient({
   const daysInMonth = new Date(year, month + 1, 0).getDate()
   const firstDay = new Date(year, month, 1).getDay()
 
-  const diasCalendario = []
+  const diasCalendario: (string | null)[] = []
   for (let i = 0; i < firstDay; i++) {
     diasCalendario.push(null)
   }
   for (let i = 1; i <= daysInMonth; i++) {
-    // Pad local dates safely
     const mStr = String(month + 1).padStart(2, '0')
     const dStr = String(i).padStart(2, '0')
     diasCalendario.push(`${year}-${mStr}-${dStr}`)
   }
 
   const mesNomes = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
-  const hojeStr = new Date().toLocaleDateString('en-CA') // YYYY-MM-DD
+  const hojeStr = new Date().toLocaleDateString('en-CA')
 
   const currentYear = new Date().getFullYear()
   let minYear = currentYear
@@ -535,7 +636,6 @@ export default function AtividadesClient({
   for (let i = minYear; i <= maxYear; i++) {
     anosDisponiveis.push(i)
   }
-
 
   return (
     <div>
@@ -635,17 +735,21 @@ export default function AtividadesClient({
                                 📍 Piquete: {a.piquete.nome}
                               </span>
                             )}
-                            {a.produto && (
+                            {a.produtos.length > 0 && (
                               <span className="text-xs text-gray-500 font-poppins">
-                                🧪 {a.produto.nome}
-                              </span>
-                            )}
-                            {a.volume != null && a.unidade && (
-                              <span className="text-xs text-gray-500 font-poppins">
-                                📦 {a.volume} {a.unidade} {a.quantidade_unidade ? `(${a.quantidade_unidade})` : ''}
+                                🧪 {a.produtos.map(p => p.produto?.nome).filter(Boolean).join(', ')}
                               </span>
                             )}
                           </div>
+                          {a.produtos.length > 0 && a.produtos.some(p => p.volume != null) && (
+                            <div className="flex gap-2 mt-1 flex-wrap">
+                              {a.produtos.filter(p => p.volume != null && p.unidade).map((p, i) => (
+                                <span key={i} className="text-xs text-gray-500 font-poppins">
+                                  📦 {p.produto?.nome}: {p.volume} {p.unidade}{p.quantidade_unidade ? ` (${p.quantidade_unidade})` : ''}
+                                </span>
+                              ))}
+                            </div>
+                          )}
                           {a.observacao && (
                             <p className="text-xs text-gray-400 font-poppins mt-1">{a.observacao}</p>
                           )}
@@ -679,7 +783,7 @@ export default function AtividadesClient({
                       )}
                       onChange={(e) => {
                         if (e.target.value) {
-                          const [y, m, d] = e.target.value.split('-')
+                          const [y, m] = e.target.value.split('-')
                           setMesAtual(new Date(Number(y), Number(m) - 1, 1))
                           setDiaSelecionado(e.target.value)
                         }
@@ -772,16 +876,12 @@ export default function AtividadesClient({
                             <span className="font-medium mr-1">📍 Piquete:</span>{a.piquete.nome}
                           </p>
                         )}
-                        {a.produto && (
-                          <p className="text-[11px] text-gray-600 font-poppins mb-0.5">
-                            <span className="font-medium mr-1">🧪 Produto:</span>{a.produto.nome}
+                        {a.produtos.length > 0 && a.produtos.map((p, i) => (
+                          <p key={i} className="text-[11px] text-gray-600 font-poppins mb-0.5">
+                            <span className="font-medium mr-1">🧪 Produto:</span>{p.produto?.nome}
+                            {p.volume != null && p.unidade && ` — ${p.volume} ${p.unidade}${p.quantidade_unidade ? ` (${p.quantidade_unidade})` : ''}`}
                           </p>
-                        )}
-                        {a.volume != null && a.unidade && (
-                          <p className="text-[11px] text-gray-600 font-poppins mb-0.5">
-                            <span className="font-medium mr-1">Volume:</span>{a.volume} {a.unidade} {a.quantidade_unidade ? `(${a.quantidade_unidade})` : ''}
-                          </p>
-                        )}
+                        ))}
                         {a.observacao && (
                           <p className="text-[11px] text-gray-500 font-poppins italic mt-1.5 border-t border-gray-200 pt-1.5">
                             "{a.observacao}"

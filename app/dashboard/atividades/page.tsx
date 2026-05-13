@@ -16,7 +16,23 @@ export default async function AtividadesPage() {
     const [resAtiv, resProd, resPiq] = await Promise.all([
       supabase
         .from('atividade')
-        .select('id, data, tipo, modalidade, volume, unidade, quantidade_unidade, observacao, produto_id, produto(nome), piquete_id, piquete(nome)')
+        .select(`
+          id,
+          data,
+          tipo,
+          modalidade,
+          observacao,
+          piquete_id,
+          piquete(nome),
+          atividade_produto(
+            id,
+            produto_id,
+            produto(nome),
+            volume,
+            unidade,
+            quantidade_unidade
+          )
+        `)
         .eq('fazenda_id', fazendaId)
         .order('data', { ascending: false })
         .limit(50),
@@ -33,8 +49,25 @@ export default async function AtividadesPage() {
         .eq('fazenda_id', fazendaId)
         .order('nome')
     ])
-    
-    atividades = (resAtiv.data ?? []) as unknown as Atividade[]
+
+    atividades = (resAtiv.data ?? []).map((a: any) => ({
+      id: a.id,
+      data: a.data,
+      tipo: a.tipo,
+      modalidade: a.modalidade,
+      observacao: a.observacao,
+      piquete_id: a.piquete_id,
+      piquete: a.piquete ?? null,
+      produtos: (a.atividade_produto ?? []).map((ap: any) => ({
+        id: ap.id,
+        produto_id: ap.produto_id,
+        produto: ap.produto ?? null,
+        volume: ap.volume,
+        unidade: ap.unidade,
+        quantidade_unidade: ap.quantidade_unidade,
+      })),
+    }))
+
     produtos = (resProd.data || []).map((p: any) => ({
       id: p.id,
       nome: p.nome,

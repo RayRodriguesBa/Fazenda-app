@@ -4,8 +4,8 @@ import { cookies } from 'next/headers'
 
 const MODALIDADES: Record<string, string[]> = {
   Adubação: ['Manual', 'Trator'],
-  Herbicida: ['Costal', 'Stihl', 'Trator'],
-  Roçagem: ['Foice', 'Roçadeira', 'Enxada'],
+  Herbicida: ['Manual', 'Trator'],
+  Roçagem: ['Manual', 'Trator'],
 }
 
 const UNIDADES: Record<string, string[]> = {
@@ -13,10 +13,24 @@ const UNIDADES: Record<string, string[]> = {
   Herbicida: ['Baldes', 'Jatão'],
 }
 
+type ProdutoPayload = {
+  produto_id: string
+  volume: number | null
+  unidade: string | null
+  quantidade_unidade: number | null
+}
+
 export async function POST(request: NextRequest) {
   try {
-    const { data, tipo, modalidade, produto_id, piquete_id, volume, unidade, quantidade_unidade, observacao } =
-      await request.json()
+    const { data, tipo, modalidade, piquete_id, observacao, produtos } =
+      await request.json() as {
+        data: string
+        tipo: string
+        modalidade: string
+        piquete_id: string
+        observacao?: string
+        produtos: ProdutoPayload[]
+      }
 
     if (!data || !tipo || !modalidade || !piquete_id) {
       return NextResponse.json(
@@ -25,12 +39,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Valida tipo
     if (!Object.keys(MODALIDADES).includes(tipo)) {
       return NextResponse.json({ error: 'Tipo inválido' }, { status: 400 })
     }
 
-    // Valida modalidade para o tipo
     if (!MODALIDADES[tipo].includes(modalidade)) {
       return NextResponse.json(
         { error: `Modalidade inválida para ${tipo}` },
@@ -38,33 +50,34 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Herbicida exige produto
-    if (tipo === 'Herbicida' && !produto_id) {
-      return NextResponse.json(
-        { error: 'Produto é obrigatório para Herbicida' },
-        { status: 400 }
-      )
+    // Validate products array
+    if (!Array.isArray(produtos) || produtos.length === 0) {
+      // Roçagem pode ter 0 produtos (produto opcional), outros tipos exigem ao menos 1 produto
+      if (tipo === 'Herbicida') {
+        return NextResponse.json(
+          { error: 'Pelo menos um produto é obrigatório para Herbicida' },
+          { status: 400 }
+        )
+      }
     }
 
-    // Adubação e Herbicida exigem unidade e volume
-    if (UNIDADES[tipo]) {
-      if (!unidade || !UNIDADES[tipo].includes(unidade)) {
-        return NextResponse.json(
-          { error: `Unidade inválida para ${tipo}` },
-          { status: 400 }
-        )
-      }
-      if (volume == null || volume === '') {
-        return NextResponse.json(
-          { error: 'Volume é obrigatório para este tipo' },
-          { status: 400 }
-        )
-      }
-      if ((unidade === 'Sacos' || unidade === 'Baldes') && (quantidade_unidade == null || quantidade_unidade === '')) {
-        return NextResponse.json(
-          { error: 'A quantidade de sacos/baldes é obrigatória' },
-          { status: 400 }
-        )
+    const temUnidade = UNIDADES[tipo] !== undefined
+    if (Array.isArray(produtos) && produtos.length > 0) {
+      for (const p of produtos) {
+        if (!p.produto_id) {
+          return NextResponse.json({ error: 'produto_id é obrigatório em cada produto' }, { status: 400 })
+        }
+        if (temUnidade) {
+          if (!p.unidade || !UNIDADES[tipo].includes(p.unidade)) {
+            return NextResponse.json({ error: `Unidade inválida para ${tipo}` }, { status: 400 })
+          }
+          if (p.volume == null) {
+            return NextResponse.json({ error: 'Volume é obrigatório para este tipo' }, { status: 400 })
+          }
+          if ((p.unidade === 'Sacos' || p.unidade === 'Baldes') && (p.quantidade_unidade == null)) {
+            return NextResponse.json({ error: 'A quantidade de sacos/baldes é obrigatória' }, { status: 400 })
+          }
+        }
       }
     }
 
@@ -78,22 +91,35 @@ export async function POST(request: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
 
-    const { error } = await supabase.from('atividade').insert({
-      data,
-      tipo,
-      modalidade,
-      produto_id: produto_id || null,
-      piquete_id,
-      volume: volume != null && volume !== '' ? Number(volume) : null,
-      unidade: unidade || null,
-      quantidade_unidade: quantidade_unidade != null && quantidade_unidade !== '' ? Number(quantidade_unidade) : null,
-      observacao: observacao?.trim() || null,
-      fazenda_id,
-    })
+    // Insert atividade
+    const { data: atividade, error: errAtiv } = await supabase
+      .from('atividade')
+      .insert({ data, tipo, modalidade, piquete_id, observacao: observacao?.trim() || null, fazenda_id })
+      .select('id')
+      .single()
 
-    if (error) {
-      console.error('Supabase error:', error)
+    if (errAtiv || !atividade) {
+      console.error('Supabase error (atividade):', errAtiv)
       return NextResponse.json({ error: 'Erro ao salvar atividade' }, { status: 500 })
+    }
+
+    // Insert atividade_produto rows
+    if (Array.isArray(produtos) && produtos.length > 0) {
+      const rows = produtos.map((p) => ({
+        atividade_id: atividade.id,
+        produto_id: p.produto_id,
+        volume: p.volume ?? null,
+        unidade: p.unidade ?? null,
+        quantidade_unidade: p.quantidade_unidade ?? null,
+      }))
+
+      const { error: errProd } = await supabase.from('atividade_produto').insert(rows)
+      if (errProd) {
+        console.error('Supabase error (atividade_produto):', errProd)
+        // Rollback: delete the atividade we just created
+        await supabase.from('atividade').delete().eq('id', atividade.id)
+        return NextResponse.json({ error: 'Erro ao salvar produtos da atividade' }, { status: 500 })
+      }
     }
 
     return NextResponse.json({ success: true }, { status: 201 })
