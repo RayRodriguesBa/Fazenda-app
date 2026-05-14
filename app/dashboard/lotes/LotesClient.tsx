@@ -1,7 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
+import ExcelJS from 'exceljs'
+
 
 export type Lote = {
   id: string
@@ -9,7 +11,14 @@ export type Lote = {
   descricao: string | null
   num_animais: number | null
   peso_medio_kg: number | null
+  sexo: string | null
   ativo: boolean
+}
+
+type LotePreview = {
+  nome: string
+  sexo: string | null
+  num_animais: number
 }
 
 export type Forrageira = 'Sempre_verde' | 'Marandu' | 'Bengo' | 'Grama' | 'Decumbens'
@@ -365,6 +374,12 @@ export default function LotesClient({
   const [editandoPiquete, setEditandoPiquete] = useState<Piquete | null>(null)
   const [sucesso, setSucesso] = useState('')
 
+  // Estado de importação
+  const [importPreview, setImportPreview] = useState<LotePreview[] | null>(null)
+  const [importLoading, setImportLoading] = useState(false)
+  const [importErro, setImportErro] = useState('')
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
   const mostrarSucesso = (msg: string) => {
     setSucesso(msg)
     setTimeout(() => setSucesso(''), 3000)
@@ -432,6 +447,117 @@ export default function LotesClient({
     router.refresh()
   }
 
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setImportErro('')
+    setImportLoading(true)
+
+    try {
+      const buffer = await file.arrayBuffer()
+      const workbook = new ExcelJS.Workbook()
+      await workbook.xlsx.load(buffer)
+
+      const worksheet = workbook.worksheets[0]
+      if (!worksheet) {
+        setImportErro('A planilha não contém nenhuma aba.')
+        setImportLoading(false)
+        return
+      }
+
+      // Encontrar índices das colunas na primeira linha (header)
+      const headerRow = worksheet.getRow(1)
+      let colLote = -1
+      let colSexo = -1
+
+      headerRow.eachCell({ includeEmpty: false }, (cell, colNumber) => {
+        const valor = String(cell.value ?? '').trim().toLowerCase()
+        if (valor === 'lote') colLote = colNumber
+        if (valor === 'sexo') colSexo = colNumber
+      })
+
+      if (colLote === -1) {
+        setImportErro('Coluna "Lote" não encontrada na planilha. Verifique se a primeira linha contém os cabeçalhos.')
+        setImportLoading(false)
+        return
+      }
+
+      // Agrupar por nome do lote e contar animais
+      const agrupado = new Map<string, { sexo: string | null; count: number }>()
+
+      for (let i = 2; i <= worksheet.rowCount; i++) {
+        const row = worksheet.getRow(i)
+        const nomeLote = String(row.getCell(colLote).value ?? '').trim()
+        if (!nomeLote) continue
+
+        const sexo = colSexo !== -1
+          ? String(row.getCell(colSexo).value ?? '').trim() || null
+          : null
+
+        const existing = agrupado.get(nomeLote)
+        if (existing) {
+          existing.count += 1
+        } else {
+          agrupado.set(nomeLote, { sexo, count: 1 })
+        }
+      }
+
+      if (agrupado.size === 0) {
+        setImportErro('Nenhum dado encontrado na planilha (após a linha de cabeçalho).')
+        setImportLoading(false)
+        return
+      }
+
+      const preview: LotePreview[] = Array.from(agrupado.entries()).map(
+        ([nome, { sexo, count }]) => ({
+          nome,
+          sexo,
+          num_animais: count,
+        })
+      )
+
+      setImportPreview(preview)
+    } catch {
+      setImportErro('Erro ao ler o arquivo. Verifique se é um arquivo .xlsx válido.')
+    } finally {
+      setImportLoading(false)
+      // Limpar o input para permitir re-selecionar o mesmo arquivo
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  const handleConfirmarImportacao = async () => {
+    if (!importPreview) return
+    setImportLoading(true)
+    setImportErro('')
+
+    try {
+      const res = await fetch('/api/lotes/importar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lotes: importPreview }),
+      })
+
+      const json = await res.json()
+
+      if (!res.ok) {
+        throw new Error(json.error || 'Erro ao importar lotes.')
+      }
+
+      const msgs: string[] = []
+      if (json.inseridos > 0) msgs.push(`${json.inseridos} lote(s) importado(s)`)
+      if (json.ignorados > 0) msgs.push(`${json.ignorados} já existente(s)`)
+      mostrarSucesso(msgs.join(', ') + '.')
+      setImportPreview(null)
+      router.refresh()
+    } catch (e: unknown) {
+      setImportErro(e instanceof Error ? e.message : 'Erro ao importar.')
+    } finally {
+      setImportLoading(false)
+    }
+  }
+
   return (
     <div>
       {sucesso && (
@@ -467,12 +593,28 @@ export default function LotesClient({
       {tab === 'lotes' && (
         <div>
           {!showNovoLote && !editandoLote && (
-            <button
-              onClick={() => setShowNovoLote(true)}
-              className="mb-4 w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 bg-[var(--primary)] text-white rounded-lg font-poppins font-semibold text-sm hover:bg-[#1a3009] transition-colors"
-            >
-              + Novo Lote
-            </button>
+            <div className="flex flex-col sm:flex-row gap-3 mb-4">
+              <button
+                onClick={() => setShowNovoLote(true)}
+                className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 bg-[var(--primary)] text-white rounded-lg font-poppins font-semibold text-sm hover:bg-[#1a3009] transition-colors"
+              >
+                + Novo Lote
+              </button>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={importLoading}
+                className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 border-2 border-[var(--primary)] text-[var(--primary)] rounded-lg font-poppins font-semibold text-sm hover:bg-[var(--primary)] hover:text-white disabled:opacity-50 transition-colors"
+              >
+                📥 Importar Excel
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".xlsx,.xls"
+                onChange={handleFileSelect}
+                className="hidden"
+              />
+            </div>
           )}
 
           {showNovoLote && (
@@ -480,6 +622,77 @@ export default function LotesClient({
               onSalvar={handleCriarLote}
               onCancelar={() => setShowNovoLote(false)}
             />
+          )}
+
+          {/* Modal de prévia da importação */}
+          {importPreview && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col overflow-hidden border border-gray-200">
+                {/* Header */}
+                <div className="px-5 py-4 border-b border-gray-100 bg-gradient-to-r from-[var(--primary)] to-[#3a6b1e]">
+                  <h3 className="text-lg font-bold text-white font-poppins flex items-center gap-2">
+                    📥 Prévia da Importação
+                  </h3>
+                  <p className="text-sm text-white/80 font-poppins mt-0.5">
+                    {importPreview.length} lote(s) encontrado(s) — {importPreview.reduce((a, b) => a + b.num_animais, 0)} animais no total
+                  </p>
+                </div>
+
+                {/* Tabela */}
+                <div className="overflow-y-auto flex-1 px-5 py-3">
+                  <table className="w-full text-sm font-poppins">
+                    <thead>
+                      <tr className="text-left text-gray-500 border-b border-gray-100">
+                        <th className="py-2 pr-3 font-medium">Lote</th>
+                        <th className="py-2 pr-3 font-medium">Sexo</th>
+                        <th className="py-2 font-medium text-right">Animais</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {importPreview.map((lote, idx) => (
+                        <tr key={idx} className="border-b border-gray-50 last:border-0">
+                          <td className="py-2 pr-3 text-[var(--text)] font-medium">{lote.nome}</td>
+                          <td className="py-2 pr-3 text-gray-600">{lote.sexo || '—'}</td>
+                          <td className="py-2 text-right text-[var(--primary)] font-semibold">{lote.num_animais}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Erro */}
+                {importErro && (
+                  <div className="mx-5 mb-2 p-3 bg-red-50 border border-[var(--error)] rounded-lg text-[var(--error)] text-sm font-poppins">
+                    {importErro}
+                  </div>
+                )}
+
+                {/* Ações */}
+                <div className="px-5 py-4 border-t border-gray-100 flex gap-3">
+                  <button
+                    onClick={handleConfirmarImportacao}
+                    disabled={importLoading}
+                    className="flex-1 px-5 py-2.5 bg-[var(--primary)] text-white rounded-lg font-poppins font-semibold text-sm hover:bg-[#1a3009] disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {importLoading ? 'Importando...' : `Confirmar (${importPreview.length} lotes)`}
+                  </button>
+                  <button
+                    onClick={() => { setImportPreview(null); setImportErro('') }}
+                    disabled={importLoading}
+                    className="px-5 py-2.5 border-2 border-gray-300 text-gray-600 rounded-lg font-poppins font-semibold text-sm hover:border-gray-400 disabled:opacity-50 transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Erro de importação (fora do modal - quando arquivo inválido) */}
+          {importErro && !importPreview && (
+            <div className="mb-4 p-3 bg-red-50 border border-[var(--error)] rounded-lg text-[var(--error)] text-sm font-poppins">
+              ❌ {importErro}
+            </div>
           )}
 
           {lotes.length === 0 && !showNovoLote ? (
@@ -529,6 +742,11 @@ export default function LotesClient({
                             {lote.peso_medio_kg != null && (
                               <span className="text-xs text-gray-600 font-poppins">
                                 ⚖️ {lote.peso_medio_kg} kg médio
+                              </span>
+                            )}
+                            {lote.sexo && (
+                              <span className="text-xs text-gray-600 font-poppins">
+                                {lote.sexo === 'M' || lote.sexo?.toLowerCase() === 'macho' ? '♂️' : '♀️'} {lote.sexo}
                               </span>
                             )}
                           </div>

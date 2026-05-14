@@ -27,7 +27,7 @@ export default async function LotesPage() {
     const [resLotes, resPiquetes] = await Promise.all([
       supabase
         .from('lote')
-        .select('id, nome, descricao, num_animais, peso_medio_kg, ativo')
+        .select('id, nome, descricao, num_animais, peso_medio_kg, sexo, ativo')
         .eq('fazenda_id', fazendaId)
         .order('nome'),
       supabase
