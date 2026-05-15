@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 
 export type RegistroCocho = {
@@ -70,7 +70,7 @@ function CochoForm({
     } catch (e: unknown) {
       setErro(e instanceof Error ? e.message : 'Erro ao excluir')
       setConfirmarExclusao(false)
-    } finally {
+    } finally { 
       setExcluindo(false)
     }
   }
@@ -211,13 +211,24 @@ function CochoForm({
 export default function CochoClient({
   registros,
   lotes,
+  de,
+  ate,
 }: {
   registros: RegistroCocho[]
   lotes: Lote[]
+  de?: string
+  ate?: string
 }) {
   const router = useRouter()
   const [modo, setModo] = useState<Modo | null>(null)
   const [sucesso, setSucesso] = useState('')
+  const [dataInicio, setDataInicio] = useState(de || '')
+  const [dataFim, setDataFim] = useState(ate || '')
+
+  useEffect(() => {
+    setDataInicio(de || '')
+    setDataFim(ate || '')
+  }, [de, ate])
 
   const mostrarSucesso = (msg: string) => {
     setSucesso(msg)
@@ -259,6 +270,19 @@ export default function CochoClient({
     router.refresh()
   }
 
+  const handleFiltrar = () => {
+    const params = new URLSearchParams()
+    if (dataInicio) params.set('de', dataInicio)
+    if (dataFim) params.set('ate', dataFim)
+    router.push(`/dashboard/cocho?${params.toString()}`)
+  }
+
+  const handleLimparFiltros = () => {
+    setDataInicio('')
+    setDataFim('')
+    router.push('/dashboard/cocho')
+  }
+
   const totalKg = registros.reduce((acc, r) => acc + r.kg, 0)
 
   return (
@@ -280,6 +304,38 @@ export default function CochoClient({
 
       {modo?.tipo === 'criar' && (
         <CochoForm modo={modo} lotes={lotes} onSalvar={handleCriar} onCancelar={() => setModo(null)} />
+      )}
+
+      {/* Filtro de período */}
+      {modo === null && (registros.length > 0 || de || ate) && (
+        <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 mb-6 flex flex-wrap items-end gap-3">
+          <div className="flex-1 min-w-[130px]">
+            <label className="block text-xs font-medium text-[var(--text)] mb-1 font-poppins">A partir de</label>
+            <input type="date" value={dataInicio} onChange={(e) => setDataInicio(e.target.value)}
+              className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg font-poppins text-sm focus:outline-none focus:border-[var(--primary)] transition"
+            />
+          </div>
+          <div className="flex-1 min-w-[130px]">
+            <label className="block text-xs font-medium text-[var(--text)] mb-1 font-poppins">Até</label>
+            <input type="date" value={dataFim} onChange={(e) => setDataFim(e.target.value)}
+              className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg font-poppins text-sm focus:outline-none focus:border-[var(--primary)] transition"
+            />
+          </div>
+          <div className="flex gap-2 w-full sm:w-auto">
+            <button onClick={handleFiltrar}
+              className="flex-1 sm:flex-none px-4 py-2 bg-[var(--primary-light)] text-white rounded-lg font-poppins font-semibold text-sm hover:bg-[var(--primary)] transition-colors"
+            >
+              Filtrar
+            </button>
+            {(de || ate) && (
+              <button onClick={handleLimparFiltros}
+                className="flex-1 sm:flex-none px-4 py-2 border-2 border-gray-200 text-gray-600 rounded-lg font-poppins font-semibold text-sm hover:border-gray-300 transition-colors"
+              >
+                Limpar
+              </button>
+            )}
+          </div>
+        </div>
       )}
 
       {registros.length > 0 && modo === null && (

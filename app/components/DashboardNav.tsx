@@ -15,10 +15,10 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/dashboard', label: 'Início', icon: '🏠' },
   { href: '/dashboard/chuva', label: 'Chuva', icon: '🌧️' },
   { href: '/dashboard/movimentacao', label: 'Gado', icon: '🐄' },
-  { href: '/dashboard/cocho', label: 'Cocho', icon: '🌾' },
+  { href: '/dashboard/cocho', label: 'Cocho', icon: '🍽️' },
   { href: '/dashboard/atividades', label: 'Atividades', icon: '🚜' },
   { href: '/dashboard/produtos', label: 'Produtos', icon: '🧪', gestorOnly: true },
-  { href: '/dashboard/lotes', label: 'Lotes', icon: '📋', gestorOnly: true },
+  { href: '/dashboard/lotes', label: 'Lotes/Piquetes', icon: '📋', gestorOnly: true },
   { href: '/dashboard/fazendas', label: 'Fazendas', icon: '🌾', gestorOnly: true },
   { href: '/dashboard/usuarios', label: 'Usuários', icon: '👥', gestorOnly: true },
 ]
@@ -89,8 +89,15 @@ export default function DashboardNav({ isGestor, nome, fazendas, activeFazendaId
       {/* Sidebar — desktop */}
       <aside className="hidden lg:flex flex-col fixed left-0 top-0 h-full w-64 bg-[var(--primary)] text-white shadow-xl z-40">
         <div className="px-6 py-6 border-b border-white/10">
-          <h1 className="text-xl font-bold font-merriweather">🌾 Fazenda Viçosa</h1>
-          
+
+          <div className="mt-4 flex items-center justify-between">
+            <p className="text-sm text-white/70 font-poppins truncate">{nome}</p>
+            {isGestor && (
+              <span className="text-[10px] bg-[var(--accent)] text-white px-2 py-0.5 rounded-full font-poppins uppercase tracking-wider font-bold">
+                Gestor
+              </span>
+            )}
+          </div>
           {/* Seletor de Fazenda Ativa */}
           <div className="mt-4 bg-white/5 rounded-lg p-2 border border-white/10 relative">
             <label className="text-[10px] uppercase tracking-wider text-white/50 font-poppins block mb-1 px-1">Fazenda Ativa</label>
@@ -108,14 +115,7 @@ export default function DashboardNav({ isGestor, nome, fazendas, activeFazendaId
             <div className="absolute right-3 top-[26px] pointer-events-none text-white/50 text-xs">▼</div>
           </div>
 
-          <div className="mt-4 flex items-center justify-between">
-            <p className="text-sm text-white/70 font-poppins truncate">{nome}</p>
-            {isGestor && (
-              <span className="text-[10px] bg-[var(--accent)] text-white px-2 py-0.5 rounded-full font-poppins uppercase tracking-wider font-bold">
-                Gestor
-              </span>
-            )}
-          </div>
+      
         </div>
 
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">

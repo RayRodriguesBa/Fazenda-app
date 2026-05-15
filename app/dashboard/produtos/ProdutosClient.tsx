@@ -6,38 +6,58 @@ import { useRouter } from 'next/navigation'
 export type Produto = {
   id: string
   nome: string
-  categoria: 'Adubação' | 'Herbicida' | 'Roçagem'
+  categoria: 'Adubação' | 'Herbicida' | 'Roçagem' | 'Banho' | 'Pour-On' | 'Vermifugo' | 'Vacina'
   ativo: boolean
 }
 
 type Modo = { tipo: 'criar' } | { tipo: 'editar'; registro: Produto }
 
-const CATEGORIAS = ['Adubação', 'Herbicida', 'Roçagem'] as const
+const CATEGORIAS = [
+  'Adubação',
+  'Herbicida',
+  'Roçagem',
+  'Banho',
+  'Pour-On',
+  'Vermifugo',
+  'Vacina'
+] as const
 type Categoria = typeof CATEGORIAS[number]
 
 const CATEGORIA_ICONS: Record<Categoria, string> = {
   Adubação: '🌱',
   Herbicida: '🧴',
   Roçagem: '🌿',
+  Banho: '🛁',
+  'Pour-On': '💧',
+  Vermifugo: '💊',
+  Vacina: '💉',
 }
 
 const CATEGORIA_CORES: Record<Categoria, string> = {
   Adubação: 'bg-green-100 text-green-700',
   Herbicida: 'bg-blue-100 text-blue-700',
   Roçagem: 'bg-yellow-100 text-yellow-700',
+  Banho: 'bg-indigo-100 text-indigo-700',
+  'Pour-On': 'bg-cyan-100 text-cyan-700',
+  Vermifugo: 'bg-purple-100 text-purple-700',
+  Vacina: 'bg-red-100 text-red-700',
 }
 
 function ProdutoForm({
   modo,
   onSalvar,
   onCancelar,
+  onExcluir,
 }: {
   modo: Modo
   onSalvar: (dados: Record<string, unknown>) => Promise<void>
   onCancelar: () => void
+  onExcluir?: () => Promise<void>
 }) {
   const editando = modo.tipo === 'editar'
   const inicial = editando ? modo.registro : null
+  const [excluindo, setExcluindo] = useState(false)
+  const [confirmarExclusao, setConfirmarExclusao] = useState(false)
 
   const [campos, setCampos] = useState({
     nome: inicial?.nome ?? '',
@@ -66,6 +86,24 @@ function ProdutoForm({
     }
   }
 
+  const handleExcluir = async () => {
+    if (!onExcluir) return
+    setExcluindo(true)
+    setErro('')
+    try {
+      await onExcluir()
+    }
+    catch (e: unknown) {
+      setErro(e instanceof Error ? e.message : "Erro ao excluir")
+      setConfirmarExclusao(false)
+    }
+    finally {
+      setExcluindo(false)
+    }
+
+  }
+
+
   return (
     <div className="bg-white border-2 border-[var(--primary)] rounded-xl p-5 shadow-sm mb-4">
       <h3 className="text-base font-semibold text-[var(--primary)] font-poppins mb-4">
@@ -88,51 +126,77 @@ function ProdutoForm({
         </div>
 
         <div className="sm:col-span-2">
-          <label className="block text-sm font-medium text-[var(--text)] mb-2 font-poppins">
+          <label className="block text-sm font-medium text-[var(--text)] mb-1 font-poppins">
             Categoria <span className="text-[var(--error)]">*</span>
           </label>
-          <div className="grid grid-cols-3 gap-2">
+          <select
+            value={campos.categoria}
+            onChange={(e) => setCampos({ ...campos, categoria: e.target.value as Categoria })}
+            disabled={loading}
+            className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg font-poppins text-sm focus:outline-none focus:border-[var(--primary)] disabled:bg-gray-100 transition bg-white"
+          >
             {CATEGORIAS.map((c) => (
-              <button
-                key={c}
-                type="button"
-                onClick={() => setCampos({ ...campos, categoria: c })}
-                disabled={loading}
-                className={`py-2.5 px-2 rounded-lg font-poppins font-semibold text-sm border-2 transition-colors flex flex-col items-center gap-1 ${
-                  campos.categoria === c
-                    ? 'bg-[var(--primary)] border-[var(--primary)] text-white'
-                    : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
-                }`}
-              >
-                <span className="text-xl">{CATEGORIA_ICONS[c]}</span>
-                <span className="text-xs leading-tight text-center">{c}</span>
-              </button>
+              <option key={c} value={c}>
+                {CATEGORIA_ICONS[c]} {c}
+              </option>
             ))}
-          </div>
+          </select>
         </div>
 
-        {editando && (
-          <div className="flex items-end pb-2">
-            <div className="flex items-center gap-3">
+        {editando && onExcluir && (
+          !confirmarExclusao ? (
+            <div className="flex items-center gap-4">
+
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setCampos({ ...campos, ativo: !campos.ativo })}
+                  disabled={loading}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${campos.ativo ? 'bg-[var(--primary)]' : 'bg-gray-300'
+                    }`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${campos.ativo ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                  />
+                </button>
+                <span className="text-sm font-poppins text-[var(--text)]">
+                  {campos.ativo ? 'Ativo' : 'Inativo'}
+                </span>
+              </div>
               <button
-                type="button"
-                onClick={() => setCampos({ ...campos, ativo: !campos.ativo })}
-                disabled={loading}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
-                  campos.ativo ? 'bg-[var(--primary)]' : 'bg-gray-300'
-                }`}
+                onClick={() => setConfirmarExclusao(true)}
+                disabled={loading || excluindo}
+                className="text-sm text-[var(--error)] font-poppins hover:underline disabled:opacity-50"
               >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    campos.ativo ? 'translate-x-6' : 'translate-x-1'
-                  }`}
-                />
+                Excluir registro
               </button>
-              <span className="text-sm font-poppins text-[var(--text)]">
-                {campos.ativo ? 'Ativo' : 'Inativo'}
-              </span>
             </div>
-          </div>
+          ) :
+            (
+              <div className="flex items-center gap-3 flex-wrap">
+                <p className="text-sm text-[var(--error)] font-poppins font-medium">
+                  Confirmar exclusão?
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleExcluir}
+                    disabled={excluindo}
+                    className="px-4 py-1.5 bg-[var(--error)] text-white rounded-lg font-poppins font-semibold text-sm hover:bg-red-700 disabled:opacity-50 transition-colors"
+                  >
+                    {excluindo ? 'Excluindo...' : 'Sim, excluir'}
+                  </button>
+                  <button
+                    onClick={() => setConfirmarExclusao(false)}
+                    disabled={excluindo}
+                    className="px-4 py-1.5 border-2 border-gray-300 text-gray-600 rounded-lg font-poppins font-semibold text-sm disabled:opacity-50 transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            )
+
         )}
       </div>
 
@@ -171,6 +235,16 @@ export default function ProdutosClient({ produtos }: { produtos: Produto[] }) {
     setSucesso(msg)
     setTimeout(() => setSucesso(''), 3000)
   }
+
+  const handleExcluir = async (id: string) => {
+    const res = await fetch(`/api/produtos/${id}`, { method: 'DELETE' })
+    const json = await res.json()
+    if (!res.ok) throw new Error(json.error)
+    setModo(null)
+    mostrarSucesso('Registro excluído com sucesso!')
+    router.refresh()
+  }
+
 
   const handleCriar = async (dados: Record<string, unknown>) => {
     const res = await fetch('/api/produtos', {
@@ -225,6 +299,7 @@ export default function ProdutosClient({ produtos }: { produtos: Produto[] }) {
           modo={modo}
           onSalvar={handleCriar}
           onCancelar={() => setModo(null)}
+
         />
       )}
 
@@ -242,6 +317,7 @@ export default function ProdutosClient({ produtos }: { produtos: Produto[] }) {
                   modo={modo}
                   onSalvar={handleEditar}
                   onCancelar={() => setModo(null)}
+                  onExcluir={() => handleExcluir(produto.id)}
                 />
               ) : (
                 <button

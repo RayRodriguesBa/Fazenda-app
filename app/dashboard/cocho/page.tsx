@@ -2,7 +2,11 @@ import { createClient } from '@/app/lib/supabase/server'
 import { cookies } from 'next/headers'
 import CochoClient, { type RegistroCocho } from './CochoClient'
 
-export default async function CochoPage() {
+export default async function CochoPage(props: {
+  searchParams: Promise<{ de?: string; ate?: string }>
+}) {
+  const searchParams = await props.searchParams
+  const { de, ate } = searchParams
   const supabase = await createClient()
 
   const cookieStore = await cookies()
@@ -13,14 +17,18 @@ export default async function CochoPage() {
   let error = null
 
   if (fazendaId) {
+    let query = supabase
+      .from('cocho')
+      .select('id, data, kg, observacao, lote_id, lote(nome)')
+      .eq('fazenda_id', fazendaId)
+      .order('data', { ascending: false })
+
+    if (de) query = query.gte('data', de)
+    if (ate) query = query.lte('data', ate)
+
     const [resLotes, resRegistros] = await Promise.all([
       supabase.from('lote').select('id, nome').eq('ativo', true).eq('fazenda_id', fazendaId).order('nome'),
-      supabase
-        .from('cocho')
-        .select('id, data, kg, observacao, lote_id, lote(nome)')
-        .eq('fazenda_id', fazendaId)
-        .order('data', { ascending: false })
-        .limit(50),
+      query.limit(100), // Aumentando o limite se houver filtros
     ])
     lotes = resLotes.data || []
     registros = (resRegistros.data ?? []) as unknown as RegistroCocho[]
@@ -38,11 +46,15 @@ export default async function CochoPage() {
           🌾 Cocho
         </h1>
         <p className="text-sm text-gray-500 font-poppins mt-1">
-          {!fazendaId ? 'Selecione uma fazenda para continuar.' : `Últimos ${lista.length} registros`}
+          {!fazendaId 
+            ? 'Selecione uma fazenda para continuar.' 
+            : de || ate 
+              ? `${lista.length} registros no período selecionado`
+              : `Últimos ${lista.length} registros`}
         </p>
       </div>
 
-      <CochoClient registros={lista} lotes={lotes ?? []} />
+      <CochoClient registros={lista} lotes={lotes ?? []} de={de} ate={ate} />
     </div>
   )
 }

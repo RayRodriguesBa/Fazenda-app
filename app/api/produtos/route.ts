@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
     const { data: categoriaData, error: categoriaError } = await supabase
       .from('categoria_produto')
       .select('id')
-      .eq('nome', categoria)
+      .eq('tipo_atividade', categoria)
       .single()
 
     if (categoriaError || !categoriaData) {

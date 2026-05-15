@@ -25,7 +25,7 @@ export default async function ProdutosPage() {
   if (fazendaId) {
     const { data } = await supabase
       .from('produto')
-      .select('id, nome, ativo, categoria_produto(nome)')
+      .select('id, nome, ativo, categoria_produto(tipo_atividade)')
       .eq('fazenda_id', fazendaId)
 
     if (data) {
@@ -33,7 +33,7 @@ export default async function ProdutosPage() {
         id: p.id,
         nome: p.nome,
         ativo: p.ativo,
-        categoria: p.categoria_produto?.nome || 'Desconhecida'
+        categoria: p.categoria_produto?.tipo_atividade || 'Desconhecida'
       })).sort((a, b) => a.categoria.localeCompare(b.categoria) || a.nome.localeCompare(b.nome))
     }
   }
