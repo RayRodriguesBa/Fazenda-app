@@ -51,7 +51,7 @@ export default async function LotesPage() {
         </p>
       </div>
 
-      <LotesClient lotes={lotes} piquetes={piquetes} isGestor={isGestor} />
+      <LotesClient lotes={lotes} piquetes={piquetes} isGestor={true} />
     </div>
   )
 }
