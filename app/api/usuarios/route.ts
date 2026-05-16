@@ -1,5 +1,7 @@
 import { createClient } from '@/app/lib/supabase/server'
+import { createAdminClient } from '@/app/lib/supabase/admin'
 import { NextRequest, NextResponse } from 'next/server'
+import { cookies } from 'next/headers'
 
 export async function POST(request: NextRequest) {
   try {
@@ -45,6 +47,37 @@ export async function POST(request: NextRequest) {
         { error: 'Erro ao criar usuário. Verifique se o email já está em uso.' },
         { status: 500 }
       )
+    }
+
+    const cookieStore = await cookies()
+    const fazenda_id = cookieStore.get('fazenda_id')?.value
+
+    if (fazenda_id) {
+      const adminClient = createAdminClient()
+      let novoUserId = resultado?.user?.id || resultado?.id || resultado?.data?.user?.id
+
+      if (!novoUserId) {
+        const { data: { users } } = await adminClient.auth.admin.listUsers()
+        const userFound = users.find(u => u.email === email.trim())
+        if (userFound) {
+          novoUserId = userFound.id
+        }
+      }
+
+      if (novoUserId) {
+        const { error: linkError } = await adminClient
+          .from('fazenda_usuario')
+          .insert({
+            fazenda_id,
+            usuario_id: novoUserId
+          })
+          
+        if (linkError) {
+          console.error('Erro ao vincular fazenda ao usuário:', linkError)
+        }
+      } else {
+        console.warn('Não foi possível obter o ID do novo usuário para vincular à fazenda.')
+      }
     }
 
     return NextResponse.json({ success: true, data: resultado }, { status: 201 })
