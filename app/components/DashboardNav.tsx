@@ -71,19 +71,38 @@ export default function DashboardNav({ isGestor, nome, fazendas, activeFazendaId
     <>
       {/* Header — mobile */}
       <header className="lg:hidden fixed top-0 left-0 right-0 bg-[var(--primary)] text-white z-40 shadow-md">
-        <div className="flex items-center justify-between px-4 py-3">
-          <div>
-            <p className="text-xs text-white/60 font-poppins leading-none">Olá,</p>
-            <p className="text-sm font-semibold font-poppins truncate max-w-[200px]">{nome}</p>
+        <div className="flex flex-col px-4 py-3 gap-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs text-white/60 font-poppins leading-none">Olá,</p>
+              <p className="text-sm font-semibold font-poppins truncate max-w-[200px]">{nome}</p>
+            </div>
+            <button
+              onClick={handleLogout}
+              disabled={loggingOut}
+              className="flex items-center gap-1.5 text-white/80 hover:text-white text-sm font-poppins transition-colors disabled:opacity-50"
+            >
+              <span className="text-base">🚪</span>
+              <span>{loggingOut ? 'Saindo...' : 'Sair'}</span>
+            </button>
           </div>
-          <button
-            onClick={handleLogout}
-            disabled={loggingOut}
-            className="flex items-center gap-1.5 text-white/80 hover:text-white text-sm font-poppins transition-colors disabled:opacity-50"
-          >
-            <span className="text-base">🚪</span>
-            <span>{loggingOut ? 'Saindo...' : 'Sair'}</span>
-          </button>
+
+          {/* Seletor de Fazenda Ativa - Mobile */}
+          <div className="bg-white/5 rounded-lg p-2 border border-white/10 relative">
+            <label className="text-[10px] uppercase tracking-wider text-white/50 font-poppins block mb-1 px-1">Fazenda Ativa</label>
+            <select 
+              value={activeFazendaId}
+              onChange={(e) => handleFazendaChange(e.target.value)}
+              disabled={changingFazenda || fazendas.length === 0}
+              className="w-full bg-transparent text-white font-poppins text-sm font-semibold focus:outline-none appearance-none cursor-pointer px-1 py-0.5"
+            >
+              {fazendas.length === 0 && <option value="">Nenhuma fazenda</option>}
+              {fazendas.map(f => (
+                <option key={f.id} value={f.id} className="text-black">{f.nome}</option>
+              ))}
+            </select>
+            <div className="absolute right-3 top-[26px] pointer-events-none text-white/50 text-xs">▼</div>
+          </div>
         </div>
       </header>
 
