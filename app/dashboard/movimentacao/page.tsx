@@ -1,4 +1,5 @@
 import { createClient } from '@/app/lib/supabase/server'
+import { createAdminClient } from '@/app/lib/supabase/admin'
 import { cookies } from 'next/headers'
 import MovimentacaoClient, { Movimentacao, type PiqueteDescanso } from './MovimentacaoClient'
 
@@ -22,14 +23,15 @@ export default async function MovimentacaoPage({
   let error = null
 
   if (fazendaId) {
+    const admin = createAdminClient()
     const [resLotes, resPiquetes, resRegistros, resHistorico] = await Promise.all([
-      supabase
+      admin
         .from('lote')
         .select('id, nome')
         .eq('ativo', true)
         .eq('fazenda_id', fazendaId)
         .order('nome'),
-      supabase
+      admin
         .from('piquete')
         .select('id, nome')
         .eq('ativo', true)

@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/app/lib/supabase/server'
+import { createAdminClient } from '@/app/lib/supabase/admin'
 import { cookies } from 'next/headers'
 import ManejoClient, { type Produto, type Lote } from './ManejoClient'
 
@@ -16,14 +17,15 @@ export default async function ManejoPage() {
   let produtos: Produto[] = []
 
   if (fazendaId) {
+    const admin = createAdminClient()
     const [resLotes, resProdutos] = await Promise.all([
-      supabase
+      admin
         .from('lote')
         .select('id, nome')
         .eq('ativo', true)
         .eq('fazenda_id', fazendaId)
         .order('nome'),
-      supabase
+      admin
         .from('produto')
         .select('id, nome, ativo, categoria_produto(tipo_atividade)')
         .eq('ativo', true)

@@ -362,9 +362,11 @@ function PiqueteForm({
 export default function LotesClient({
   lotes,
   piquetes,
+  isGestor,
 }: {
   lotes: Lote[]
   piquetes: Piquete[]
+  isGestor?: boolean
 }) {
   const router = useRouter()
   const [tab, setTab] = useState<Tab>('lotes')
@@ -592,7 +594,7 @@ export default function LotesClient({
       {/* Aba Lotes */}
       {tab === 'lotes' && (
         <div>
-          {!showNovoLote && !editandoLote && (
+          {!showNovoLote && !editandoLote && isGestor && (
             <div className="flex flex-col sm:flex-row gap-3 mb-4">
               <button
                 onClick={() => setShowNovoLote(true)}
@@ -711,13 +713,18 @@ export default function LotesClient({
                       onCancelar={() => setEditandoLote(null)}
                     />
                   ) : (
-                    <button
-                      onClick={() => {
-                        setShowNovoLote(false)
-                        setEditandoLote(lote)
-                      }}
-                      className="w-full text-left bg-white rounded-xl px-4 py-3 shadow-sm border border-gray-100 hover:border-[var(--primary)] hover:shadow-md transition-all duration-200"
-                    >
+                      <button
+                        onClick={() => {
+                          if (isGestor) {
+                            setShowNovoLote(false)
+                            setEditandoLote(lote)
+                          }
+                        }}
+                        disabled={!isGestor}
+                        className={`w-full text-left bg-white rounded-xl px-4 py-3 shadow-sm border border-gray-100 transition-all duration-200 ${
+                          isGestor ? 'hover:border-[var(--primary)] hover:shadow-md cursor-pointer' : 'cursor-default'
+                        }`}
+                      >
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
@@ -764,7 +771,7 @@ export default function LotesClient({
       {/* Aba Piquetes */}
       {tab === 'piquetes' && (
         <div>
-          {!showNovoPiquete && !editandoPiquete && (
+          {!showNovoPiquete && !editandoPiquete && isGestor && (
             <button
               onClick={() => setShowNovoPiquete(true)}
               className="mb-4 w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 bg-[var(--primary)] text-white rounded-lg font-poppins font-semibold text-sm hover:bg-[#1a3009] transition-colors"
@@ -798,10 +805,15 @@ export default function LotesClient({
                   ) : (
                     <button
                       onClick={() => {
-                        setShowNovoPiquete(false)
-                        setEditandoPiquete(piquete)
+                        if (isGestor) {
+                          setShowNovoPiquete(false)
+                          setEditandoPiquete(piquete)
+                        }
                       }}
-                      className="w-full text-left bg-white rounded-xl px-4 py-3 shadow-sm border border-gray-100 hover:border-[var(--primary)] hover:shadow-md transition-all duration-200"
+                      disabled={!isGestor}
+                      className={`w-full text-left bg-white rounded-xl px-4 py-3 shadow-sm border border-gray-100 transition-all duration-200 ${
+                        isGestor ? 'hover:border-[var(--primary)] hover:shadow-md cursor-pointer' : 'cursor-default'
+                      }`}
                     >
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex-1 min-w-0">

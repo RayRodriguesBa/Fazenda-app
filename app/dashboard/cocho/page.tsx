@@ -1,4 +1,5 @@
 import { createClient } from '@/app/lib/supabase/server'
+import { createAdminClient } from '@/app/lib/supabase/admin'
 import { cookies } from 'next/headers'
 import CochoClient, { type RegistroCocho } from './CochoClient'
 
@@ -26,8 +27,9 @@ export default async function CochoPage(props: {
     if (de) query = query.gte('data', de)
     if (ate) query = query.lte('data', ate)
 
+    const admin = createAdminClient()
     const [resLotes, resRegistros] = await Promise.all([
-      supabase.from('lote').select('id, nome').eq('ativo', true).eq('fazenda_id', fazendaId).order('nome'),
+      admin.from('lote').select('id, nome').eq('ativo', true).eq('fazenda_id', fazendaId).order('nome'),
       query.limit(100), // Aumentando o limite se houver filtros
     ])
     lotes = resLotes.data || []
