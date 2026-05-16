@@ -15,6 +15,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/dashboard', label: 'Início', icon: '🏠' },
   { href: '/dashboard/chuva', label: 'Chuva', icon: '🌧️' },
   { href: '/dashboard/movimentacao', label: 'Gado', icon: '🐄' },
+  { href: '/dashboard/manejo', label: 'Manejo', icon: '💉' },
   { href: '/dashboard/cocho', label: 'Cocho', icon: '🍽️' },
   { href: '/dashboard/atividades', label: 'Atividades', icon: '🚜' },
   { href: '/dashboard/produtos', label: 'Produtos', icon: '🧪', gestorOnly: true },
