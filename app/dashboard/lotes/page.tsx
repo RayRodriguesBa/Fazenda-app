@@ -23,8 +23,10 @@ export default async function LotesPage() {
   let lotes: Lote[] = []
   let piquetes: Piquete[] = []
 
+  let movimentacoes: any[] = []
+
   if (fazendaId) {
-    const [resLotes, resPiquetes] = await Promise.all([
+    const [resLotes, resPiquetes, resMov] = await Promise.all([
       supabase
         .from('lote')
         .select('id, nome, descricao, num_animais, peso_medio_kg, sexo, ativo')
@@ -35,9 +37,16 @@ export default async function LotesPage() {
         .select('id, nome, area_ha, aproveitamento_pasto, forrageira, ativo')
         .eq('fazenda_id', fazendaId)
         .order('nome'),
+      supabase
+        .from('movimentacao_gado')
+        .select('id, data, tipo_operacao, media_altura, lote_id, piquete_id, created_at')
+        .eq('fazenda_id', fazendaId)
+        .order('data', { ascending: true })
+        .order('created_at', { ascending: true })
     ])
     lotes = resLotes.data || []
     piquetes = resPiquetes.data || []
+    movimentacoes = resMov.data || []
   }
 
   return (
@@ -51,7 +60,7 @@ export default async function LotesPage() {
         </p>
       </div>
 
-      <LotesClient lotes={lotes} piquetes={piquetes} isGestor={true} />
+      <LotesClient lotes={lotes} piquetes={piquetes} movimentacoes={movimentacoes} isGestor={true} />
     </div>
   )
 }
