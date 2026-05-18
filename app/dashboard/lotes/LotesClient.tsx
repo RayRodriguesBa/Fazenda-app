@@ -488,7 +488,7 @@ export default function LotesClient({
           p.data_saida = mov.data
           p.altura_saida = mov.media_altura
           const d1 = new Date(p.data_entrada)
-          const d2 = new Date(p.data_saida)
+          const d2 = new Date(mov.data)
           p.dias_ocupado = Math.max(0, Math.floor((d2.getTime() - d1.getTime()) / 86400000))
           delete abertos[mov.lote_id]
         } else {
