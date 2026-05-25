@@ -99,6 +99,17 @@ function MovimentacaoForm({
     ? piquetes.filter((p) => !piquetesOcupadosFiltrados.includes(p.id))
     : piquetes
 
+  // Lotes filtrados conforme o tipo escolhido
+  const lotesFiltrados = editando
+    ? lotes
+    : !tipo
+      ? []
+      : tipo === 'Saída'
+        ? lotes.filter(l => !!piqueteAtualPorLote[l.id])
+        : lotes.filter(l => !piqueteAtualPorLote[l.id])
+
+  const piqueteAutoPreenchido = tipo === 'Saída' && !!loteId && !!piqueteAtualPorLote[loteId]
+
   const alturasPreenchidas = ALTURAS.filter((k) => alturas[k] !== '')
   const alturasValidas = alturasPreenchidas.length === 0 || alturasPreenchidas.length === 5
 
@@ -163,26 +174,6 @@ function MovimentacaoForm({
           />
         </div>
 
-        {/* Lote */}
-        <div>
-          <label className="block text-sm font-medium text-[var(--text)] mb-1 font-poppins">
-            Lote <span className="text-[var(--error)]">*</span>
-          </label>
-          <select value={loteId}
-            onChange={(e) => {
-              const novoId = e.target.value
-              setLoteId(novoId)
-              if (tipo === 'Saída' && novoId) setPiqueteId(piqueteAtualPorLote[novoId] ?? '')
-              else setPiqueteId('')
-            }}
-            disabled={loading || excluindo}
-            className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg font-poppins text-sm focus:outline-none focus:border-[var(--primary)] disabled:bg-gray-100 transition bg-white"
-          >
-            <option value="">Selecione um lote...</option>
-            {lotes.map((l) => <option key={l.id} value={l.id}>{l.nome}</option>)}
-          </select>
-        </div>
-
         {/* Tipo */}
         <div>
           <label className="block text-sm font-medium text-[var(--text)] mb-2 font-poppins">
@@ -193,9 +184,8 @@ function MovimentacaoForm({
               <button key={t} type="button"
                 onClick={() => {
                   setTipo(t)
-                  if (t === 'Saída') {
-                    if (loteId) setPiqueteId(piqueteAtualPorLote[loteId] ?? '')
-                  } else {
+                  if (!editando) {
+                    setLoteId('')
                     setPiqueteId('')
                   }
                 }}
@@ -212,19 +202,48 @@ function MovimentacaoForm({
           </div>
         </div>
 
+        {/* Lote */}
+        <div>
+          <label className="block text-sm font-medium text-[var(--text)] mb-1 font-poppins">
+            Lote <span className="text-[var(--error)]">*</span>
+            {!tipo && !editando && (
+              <span className="ml-2 text-xs text-gray-400 font-normal">selecione o tipo primeiro</span>
+            )}
+            {tipo === 'Saída' && !editando && lotesFiltrados.length === 0 && (
+              <span className="ml-2 text-xs text-amber-600 font-normal">nenhum lote com saída pendente</span>
+            )}
+            {tipo === 'Entrada' && !editando && lotesFiltrados.length === 0 && (
+              <span className="ml-2 text-xs text-amber-600 font-normal">todos os lotes estão em campo</span>
+            )}
+          </label>
+          <select value={loteId}
+            onChange={(e) => {
+              const novoId = e.target.value
+              setLoteId(novoId)
+              if (tipo === 'Saída' && novoId) setPiqueteId(piqueteAtualPorLote[novoId] ?? '')
+              else setPiqueteId('')
+            }}
+            disabled={(!tipo && !editando) || loading || excluindo}
+            className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg font-poppins text-sm focus:outline-none focus:border-[var(--primary)] disabled:bg-gray-100 transition bg-white"
+          >
+            <option value="">{!tipo && !editando ? 'Selecione o tipo primeiro' : 'Selecione um lote...'}</option>
+            {lotesFiltrados.map((l) => <option key={l.id} value={l.id}>{l.nome}</option>)}
+          </select>
+        </div>
+
         {/* Piquete */}
         <div>
           <label className="block text-sm font-medium text-[var(--text)] mb-1 font-poppins">
             Piquete <span className="text-[var(--error)]">*</span>
-            {tipo === 'Saída' && loteId && piqueteAtualPorLote[loteId] && (
-              <span className="ml-2 text-xs text-[var(--primary-light)] font-normal">(piquete atual)</span>
+            {piqueteAutoPreenchido && (
+              <span className="ml-2 text-xs text-[var(--primary-light)] font-normal">(preenchido automaticamente)</span>
             )}
             {tipo === 'Entrada' && piquetesFiltrados.length === 0 && (
               <span className="ml-2 text-xs text-amber-600 font-normal">todos ocupados</span>
             )}
           </label>
           <select value={piqueteId} onChange={(e) => setPiqueteId(e.target.value)}
-            disabled={loading || excluindo}
+            disabled={loading || excluindo || piqueteAutoPreenchido}
             className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg font-poppins text-sm focus:outline-none focus:border-[var(--primary)] disabled:bg-gray-100 transition bg-white"
           >
             <option value="">Selecione um piquete...</option>

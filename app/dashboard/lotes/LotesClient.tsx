@@ -435,15 +435,6 @@ export default function LotesClient({
 
   // Filtros Piquetes
   const [filtroPiqueteIds, setFiltroPiqueteIds] = useState<string[]>([])
-  const [filtroLoteIds, setFiltroLoteIds] = useState<string[]>([])
-  
-  const hojeStr = new Date().toISOString().split('T')[0]
-  const seteDiasAtras = new Date()
-  seteDiasAtras.setDate(seteDiasAtras.getDate() - 7)
-  const seteDiasAtrasStr = seteDiasAtras.toISOString().split('T')[0]
-
-  const [filtroDataInicio, setFiltroDataInicio] = useState(seteDiasAtrasStr)
-  const [filtroDataFim, setFiltroDataFim] = useState(hojeStr)
 
   const formatarData = (dataISO: string) => {
     if (!dataISO || dataISO === '?') return '?'
@@ -518,27 +509,40 @@ export default function LotesClient({
     return pastejos.reverse()
   }
 
-  const filtrarPastejos = (pastejos: Pastejo[]) => {
-    return pastejos.filter(p => {
-      if (filtroLoteIds.length > 0 && !filtroLoteIds.includes(p.lote_id)) return false
-      if (filtroDataInicio) {
-        if (p.data_saida && p.data_saida < filtroDataInicio) return false
-        if (!p.data_saida && p.data_entrada !== '?' && new Date().toISOString().split('T')[0] < filtroDataInicio) return false
-      }
-      if (filtroDataFim) {
-        if (p.data_entrada !== '?' && p.data_entrada > filtroDataFim) return false
-      }
+  const piquetesFiltrados = piquetes
+    .filter(piquete => {
+      if (filtroPiqueteIds.length > 0 && !filtroPiqueteIds.includes(piquete.id)) return false
       return true
     })
-  }
+    .sort((a, b) => {
+      const getStatus = (id: string) => {
+        const last = getPastejos(id)[0]
+        if (!last) return { isOcupado: false, dias: -1 }
+        
+        const now = new Date().getTime()
+        const isOcupado = !last.data_saida
+        
+        if (isOcupado) {
+          const diasOcupado = last.data_entrada !== '?' 
+            ? Math.floor((now - new Date(last.data_entrada).getTime()) / 86400000)
+            : (last.dias_ocupado || 0)
+          return { isOcupado: true, dias: diasOcupado }
+        } else {
+          const diasDescanso = last.data_saida
+            ? Math.floor((now - new Date(last.data_saida).getTime()) / 86400000)
+            : 0
+          return { isOcupado: false, dias: diasDescanso }
+        }
+      }
 
-  const piquetesFiltrados = piquetes.filter(piquete => {
-    if (filtroPiqueteIds.length > 0 && !filtroPiqueteIds.includes(piquete.id)) return false
-    const pastejos = getPastejos(piquete.id)
-    const exibidos = filtrarPastejos(pastejos)
-    if ((filtroLoteIds.length > 0 || filtroDataInicio || filtroDataFim) && exibidos.length === 0) return false
-    return true
-  })
+      const statusA = getStatus(a.id)
+      const statusB = getStatus(b.id)
+
+      if (statusA.isOcupado && !statusB.isOcupado) return -1
+      if (!statusA.isOcupado && statusB.isOcupado) return 1
+
+      return statusB.dias - statusA.dias
+    })
 
   const mostrarSucesso = (msg: string) => {
     setSucesso(msg)
@@ -1021,39 +1025,24 @@ export default function LotesClient({
       {/* Aba Análise de Pastejo */}
       {tab === 'analise_pastejo' && (
         <div>
-          {/* Filtros */}
+          {/* Filtro de Piquetes */}
           <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 mb-6 flex flex-wrap items-end gap-3">
             <div className="flex-1 min-w-[150px]">
               <label className="block text-xs font-medium text-[var(--text)] mb-1 font-poppins">Piquetes</label>
-              <MultiSelect 
-                options={piquetes.map(p => ({id: p.id, nome: p.nome}))} 
-                selectedIds={filtroPiqueteIds} 
-                onChange={setFiltroPiqueteIds} 
-                placeholder="Todos" 
+              <MultiSelect
+                options={piquetes.map(p => ({ id: p.id, nome: p.nome }))}
+                selectedIds={filtroPiqueteIds}
+                onChange={setFiltroPiqueteIds}
+                placeholder="Todos"
               />
             </div>
-            <div className="flex-1 min-w-[150px]">
-              <label className="block text-xs font-medium text-[var(--text)] mb-1 font-poppins">Lotes Ocupantes</label>
-              <MultiSelect 
-                options={lotes.map(l => ({id: l.id, nome: l.nome}))} 
-                selectedIds={filtroLoteIds} 
-                onChange={setFiltroLoteIds} 
-                placeholder="Todos" 
-              />
-            </div>
-            <div className="flex-1 min-w-[130px]">
-              <label className="block text-xs font-medium text-[var(--text)] mb-1 font-poppins">Data Início</label>
-              <input type="date" value={filtroDataInicio} onChange={e => setFiltroDataInicio(e.target.value)} className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg font-poppins text-sm focus:outline-none focus:border-[var(--primary)] transition" />
-            </div>
-            <div className="flex-1 min-w-[130px]">
-              <label className="block text-xs font-medium text-[var(--text)] mb-1 font-poppins">Data Fim</label>
-              <input type="date" value={filtroDataFim} onChange={e => setFiltroDataFim(e.target.value)} className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg font-poppins text-sm focus:outline-none focus:border-[var(--primary)] transition" />
-            </div>
-            <div className="w-full sm:w-auto">
-              <button onClick={() => { setFiltroPiqueteIds([]); setFiltroLoteIds([]); setFiltroDataInicio(''); setFiltroDataFim('') }} className="w-full sm:w-auto px-4 py-2 border-2 border-gray-200 text-gray-600 rounded-lg font-poppins font-semibold text-sm hover:border-gray-300 transition-colors">
-                Limpar
-              </button>
-            </div>
+            {filtroPiqueteIds.length > 0 && (
+              <div className="w-full sm:w-auto">
+                <button onClick={() => setFiltroPiqueteIds([])} className="w-full sm:w-auto px-4 py-2 border-2 border-gray-200 text-gray-600 rounded-lg font-poppins font-semibold text-sm hover:border-gray-300 transition-colors">
+                  Limpar
+                </button>
+              </div>
+            )}
           </div>
 
           {piquetesFiltrados.length === 0 && !showNovoPiquete ? (
@@ -1077,14 +1066,18 @@ export default function LotesClient({
                 }
 
                 const allPastejos = getPastejos(piquete.id)
-                const displayPastejos = filtrarPastejos(allPastejos)
-                const lastPastejo = allPastejos[0] // absolute latest
+                const lastPastejo = allPastejos[0]
                 const isOcupado = lastPastejo && !lastPastejo.data_saida
                 const diasDescanso = (!isOcupado && lastPastejo?.data_saida) ? Math.max(0, Math.floor((new Date().getTime() - new Date(lastPastejo.data_saida).getTime()) / 86400000)) : 0
                 const diasOcupado = (isOcupado && lastPastejo?.data_entrada !== '?') ? Math.max(0, Math.floor((new Date().getTime() - new Date(lastPastejo.data_entrada).getTime()) / 86400000)) : (lastPastejo?.dias_ocupado || 0)
+                const ultimoPastejoCompleto = allPastejos.find(p => !!p.data_saida) ?? null
 
                 return (
-                  <div key={piquete.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col">
+                  <div
+                    key={piquete.id}
+                    className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col cursor-pointer hover:shadow-md transition-shadow"
+                    onClick={() => router.push(`/dashboard/piquete/${piquete.id}`)}
+                  >
                     {/* Header Piquete */}
                     <div className={`px-4 py-3 border-b flex justify-between items-center ${isOcupado ? 'bg-green-50 border-green-100' : 'bg-amber-50 border-amber-100'}`}>
                       <div>
@@ -1104,7 +1097,7 @@ export default function LotesClient({
                             <div className="bg-green-600 text-white px-2.5 py-1 rounded-full text-xs font-bold shadow-sm inline-block">
                               Ocupado: {diasOcupado} d
                             </div>
-                            {lastPastejo?.dias_descanso_previo != null && (
+                            {lastPastejo?.dias_descanso_previo != null && lastPastejo.dias_descanso_previo > 0 && (
                               <span className="text-[10px] text-gray-500 font-semibold font-poppins">Descansou: {lastPastejo.dias_descanso_previo} d</span>
                             )}
                           </div>
@@ -1116,72 +1109,85 @@ export default function LotesClient({
                       </div>
                     </div>
 
-                    <div className="p-4 flex-1 flex flex-col">
-                      {/* Alturas Atuais */}
-                      {lastPastejo && (
-                        <div className="grid grid-cols-2 gap-3 mb-5">
-                          <div className="bg-gray-50 rounded-lg p-2.5 border border-gray-100 text-center">
-                            <span className="text-[10px] text-gray-500 font-poppins font-bold uppercase tracking-wider block mb-0.5">Altura Entrada (E)</span>
-                            <span className="text-lg font-bold text-gray-800 font-poppins">
-                              {lastPastejo.altura_entrada ? `${lastPastejo.altura_entrada} cm` : '—'}
-                            </span>
+                    <div className="p-4 flex-1 flex flex-col gap-4">
+                      {/* Pastejo Atual */}
+                      {isOcupado && lastPastejo && (
+                        <div>
+                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider font-poppins mb-2">Pastejo Atual</p>
+                          <div className="flex items-center gap-2 mb-2.5">
+                            <span className="text-xs font-semibold font-poppins text-[var(--text)] bg-gray-100 px-2 py-0.5 rounded">{lastPastejo.lote_nome}</span>
+                            <span className="text-[11px] text-gray-500 font-poppins">desde {formatarData(lastPastejo.data_entrada)}</span>
                           </div>
-                          <div className="bg-[var(--primary-light)]/10 rounded-lg p-2.5 border border-[var(--primary-light)]/30 text-center">
-                            <span className="text-[10px] text-[var(--primary)] font-poppins font-bold uppercase tracking-wider block mb-0.5">Altura Saída (S)</span>
-                            <span className="text-lg font-bold text-[var(--primary)] font-poppins">
-                              {lastPastejo.altura_saida ? `${lastPastejo.altura_saida} cm` : (isOcupado ? 'Em andamento' : '—')}
-                            </span>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="bg-gray-50 rounded-lg p-2.5 border border-gray-100 text-center">
+                              <span className="text-[10px] text-gray-500 font-poppins font-bold uppercase tracking-wider block mb-0.5">Altura Entrada</span>
+                              <span className="text-lg font-bold text-gray-800 font-poppins">
+                                {lastPastejo.altura_entrada ? `${lastPastejo.altura_entrada} cm` : '—'}
+                              </span>
+                            </div>
+                            <div className="bg-[var(--primary-light)]/10 rounded-lg p-2.5 border border-[var(--primary-light)]/30 text-center">
+                              <span className="text-[10px] text-[var(--primary)] font-poppins font-bold uppercase tracking-wider block mb-0.5">Altura Saída</span>
+                              <span className="text-base font-bold text-[var(--primary)] font-poppins">Em andamento</span>
+                            </div>
                           </div>
                         </div>
                       )}
 
-                      {/* Histórico */}
-                      <div className="mb-2 flex items-center justify-between">
-                        <h4 className="text-sm font-semibold text-gray-700 font-poppins">Sequência de Pastejo</h4>
-                        <span className="text-xs text-gray-500 font-poppins">{displayPastejos.length} registro(s)</span>
-                      </div>
-
-                      {displayPastejos.length > 0 ? (
-                        <div className="space-y-2 max-h-48 overflow-y-auto pr-1 flex-1">
-                          {displayPastejos.map((p, i) => (
-                            <div key={i} className="bg-white border border-gray-100 rounded-lg p-2.5 text-sm shadow-sm">
-                              <div className="flex justify-between items-start mb-2">
-                                <span className="font-bold text-[var(--text)] font-poppins text-[11px] px-2 py-0.5 bg-gray-100 rounded">
-                                  {p.lote_nome}
-                                </span>
-                                <div className="flex items-center gap-1.5">
-                                  {p.dias_descanso_previo != null && (
-                                    <span className="text-[10px] font-semibold text-amber-600 font-poppins">
-                                      {p.dias_descanso_previo}d desc. →
-                                    </span>
-                                  )}
-                                  <span className="text-[10px] font-bold text-gray-500 font-poppins bg-white px-1.5 py-0.5 rounded border border-gray-200">
-                                    {p.dias_ocupado !== null ? `${p.dias_ocupado} dias` : 'Ocupando...'}
-                                  </span>
-                                </div>
-                              </div>
-                              <div className="grid grid-cols-2 gap-2 text-[11px] font-poppins text-gray-600">
-                                <div>
-                                  <p><span className="text-green-600 font-semibold uppercase">Ent:</span> {formatarData(p.data_entrada)}</p>
-                                  <p className="mt-0.5 ml-1 text-gray-400">Alt: {p.altura_entrada ? `${p.altura_entrada}cm` : '—'}</p>
-                                </div>
-                                <div>
-                                  <p><span className="text-red-600 font-semibold uppercase">Sai:</span> {p.data_saida ? formatarData(p.data_saida) : '—'}</p>
-                                  <p className="mt-0.5 ml-1 text-gray-400">Alt: {p.altura_saida ? `${p.altura_saida}cm` : '—'}</p>
-                                </div>
+                      {/* Último Pastejo Completo */}
+                      {ultimoPastejoCompleto && (
+                        <div>
+                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider font-poppins mb-2">Último Pastejo</p>
+                          <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
+                            <div className="flex items-center justify-between mb-2.5">
+                              <span className="text-xs font-semibold font-poppins text-[var(--text)] bg-white border border-gray-200 px-2 py-0.5 rounded">{ultimoPastejoCompleto.lote_nome}</span>
+                              <div className="flex items-center gap-2 text-[10px] font-bold text-gray-500 font-poppins">
+                                {ultimoPastejoCompleto.dias_descanso_previo != null && (
+                                  <span>{ultimoPastejoCompleto.dias_descanso_previo} d desc.</span>
+                                )}
+                                {ultimoPastejoCompleto.dias_ocupado !== null && (
+                                  <span>{ultimoPastejoCompleto.dias_ocupado} d ocup.</span>
+                                )}
                               </div>
                             </div>
-                          ))}
+                            <div className="grid grid-cols-2 gap-2 text-[11px] font-poppins text-gray-600 mb-2">
+                              <p><span className="text-green-600 font-semibold">Entrada:</span> {formatarData(ultimoPastejoCompleto.data_entrada)}</p>
+                              <p><span className="text-red-600 font-semibold">Saída:</span> {formatarData(ultimoPastejoCompleto.data_saida!)}</p>
+                            </div>
+                            {ultimoPastejoCompleto.dias_descanso_previo != null && ultimoPastejoCompleto.dias_descanso_previo > 0 && (
+                              <div className="flex items-center gap-1.5 mb-2 bg-amber-50 border border-amber-100 rounded px-2 py-1.5">
+                                <span className="text-amber-500 text-xs">🌿</span>
+                                <span className="text-[11px] font-poppins text-amber-700">
+                                  <span className="font-bold">{ultimoPastejoCompleto.dias_descanso_previo} dias</span> de descanso antes deste pastejo
+                                </span>
+                              </div>
+                            )}
+                            <div className="grid grid-cols-2 gap-2">
+                              <div className="text-center bg-white rounded p-1.5 border border-gray-100">
+                                <span className="text-[10px] text-gray-400 font-bold uppercase block font-poppins">Alt. Entrada</span>
+                                <span className="font-bold text-gray-700 font-poppins text-sm">{ultimoPastejoCompleto.altura_entrada ? `${ultimoPastejoCompleto.altura_entrada} cm` : '—'}</span>
+                              </div>
+                              <div className="text-center bg-white rounded p-1.5 border border-gray-100">
+                                <span className="text-[10px] text-gray-400 font-bold uppercase block font-poppins">Alt. Saída</span>
+                                <span className="font-bold text-gray-700 font-poppins text-sm">{ultimoPastejoCompleto.altura_saida ? `${ultimoPastejoCompleto.altura_saida} cm` : '—'}</span>
+                              </div>
+                            </div>
+                          </div>
                         </div>
-                      ) : (
-                        <div className="text-center py-6 bg-gray-50 rounded-lg border border-gray-100 border-dashed flex-1 flex items-center justify-center">
-                          <span className="text-xs text-gray-400 font-poppins">Nenhum pastejo correspondente.</span>
+                      )}
+
+                      {/* Estado vazio */}
+                      {!isOcupado && !ultimoPastejoCompleto && (
+                        <div className="text-center py-6 bg-gray-50 rounded-lg border border-dashed border-gray-200 flex-1 flex items-center justify-center">
+                          <span className="text-xs text-gray-400 font-poppins">Nenhum pastejo registrado.</span>
                         </div>
                       )}
 
                       {/* Botão de Edição */}
                       {isGestor && (
-                        <button onClick={() => { setShowNovoPiquete(false); setEditandoPiquete(piquete) }} className="mt-4 w-full py-2 text-xs font-semibold text-[var(--primary)] bg-white border border-[var(--primary)] rounded-lg hover:bg-[var(--primary)] hover:text-white transition-colors">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setShowNovoPiquete(false); setEditandoPiquete(piquete) }}
+                          className="mt-auto w-full py-2 text-xs font-semibold text-[var(--primary)] bg-white border border-[var(--primary)] rounded-lg hover:bg-[var(--primary)] hover:text-white transition-colors"
+                        >
                           Editar Piquete
                         </button>
                       )}
