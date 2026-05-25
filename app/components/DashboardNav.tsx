@@ -18,7 +18,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/dashboard/manejo', label: 'Manejo', icon: '💉' },
   { href: '/dashboard/cocho', label: 'Cocho', icon: '🍽️' },
   { href: '/dashboard/atividades', label: 'Atividades', icon: '🚜' },
-  { href: '/dashboard/produtos', label: 'Produtos', icon: '🧪', gestorOnly: true },
+  { href: '/dashboard/produtos', label: 'Produtos', icon: '🧪' },
   { href: '/dashboard/lotes', label: 'Lotes/Piquetes', icon: '📋', gestorOnly: true },
   { href: '/dashboard/fazendas', label: 'Fazendas', icon: '🌾', gestorOnly: true },
   { href: '/dashboard/usuarios', label: 'Usuários', icon: '👥', gestorOnly: true },
@@ -169,34 +169,24 @@ export default function DashboardNav({ isGestor, nome, fazendas, activeFazendaId
 
       {/* Bottom nav — mobile */}
       <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-[var(--primary)] z-40 shadow-[0_-2px_10px_rgba(0,0,0,0.15)]">
-        <div className="flex items-center justify-around px-1 py-2">
-          {visibleItems.slice(0, 5).map((item) => (
+        <div 
+          className="flex items-center px-3 py-2 overflow-x-auto gap-4 [&::-webkit-scrollbar]:hidden" 
+          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+        >
+          {visibleItems.map((item) => (
             <Link
               key={item.href}
               href={item.href}
-              className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg transition-colors min-w-[48px] ${
+              className={`flex flex-col items-center gap-1 px-1 py-1 rounded-lg transition-colors flex-shrink-0 min-w-[60px] ${
                 isActive(item.href) ? 'text-white' : 'text-white/60'
               }`}
             >
               <span className={`text-xl leading-none ${isActive(item.href) ? 'scale-110' : ''} transition-transform`}>
                 {item.icon}
               </span>
-              <span className="text-[10px] font-poppins leading-none">{item.label}</span>
+              <span className="text-[10px] font-poppins leading-none whitespace-nowrap">{item.label}</span>
             </Link>
           ))}
-
-          {isGestor && (
-            <Link
-              href="/dashboard/lotes"
-              className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg transition-colors min-w-[48px] ${
-                isActive('/dashboard/lotes') ? 'text-white' : 'text-white/60'
-              }`}
-            >
-              <span className="text-xl leading-none">📋</span>
-              <span className="text-[10px] font-poppins leading-none">Lotes</span>
-            </Link>
-          )}
-
         </div>
       </nav>
     </>
