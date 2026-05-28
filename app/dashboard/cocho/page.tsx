@@ -45,7 +45,7 @@ export default async function CochoPage(props: {
     <div>
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-[var(--primary)] font-merriweather">
-          🌾 Cocho
+          🌽 Cocho
         </h1>
         <p className="text-sm text-gray-500 font-poppins mt-1">
           {!fazendaId 
