@@ -20,7 +20,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/dashboard/manejo', label: 'Manejo', icon: Syringe },
   { href: '/dashboard/cocho', label: 'Cocho', icon: Wheat },
   { href: '/dashboard/atividades', label: 'Atividades', icon: Tractor },
-  { href: '/dashboard/produtos', label: 'Produtos', icon: Package },
+  { href: '/dashboard/produtos', label: 'Produtos', icon: Package, gestorOnly: true },
   { href: '/dashboard/lotes', label: 'Lotes/Piquetes', icon: ClipboardList, gestorOnly: true },
   { href: '/dashboard/fazendas', label: 'Fazendas', icon: Map, gestorOnly: true },
   { href: '/dashboard/usuarios', label: 'Usuários', icon: Users, gestorOnly: true },
