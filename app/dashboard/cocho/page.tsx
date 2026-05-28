@@ -1,4 +1,5 @@
 import { createClient } from '@/app/lib/supabase/server'
+import { Wheat } from 'lucide-react'
 import { createAdminClient } from '@/app/lib/supabase/admin'
 import { cookies } from 'next/headers'
 import CochoClient, { type RegistroCocho } from './CochoClient'
@@ -44,8 +45,8 @@ export default async function CochoPage(props: {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-[var(--primary)] font-merriweather">
-          🌽 Cocho
+        <h1 className="text-2xl font-bold text-[var(--primary)] font-merriweather flex items-center">
+          <Wheat className="inline-block mr-2 w-7 h-7 mb-1" /> Cocho
         </h1>
         <p className="text-sm text-gray-500 font-poppins mt-1">
           {!fazendaId 

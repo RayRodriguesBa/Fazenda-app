@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import { Users } from 'lucide-react'
 import { createClient } from '@/app/lib/supabase/server'
 import { createAdminClient } from '@/app/lib/supabase/admin'
 import UsuariosClient, { type Usuario } from './UsuariosClient'
@@ -70,8 +71,8 @@ export default async function UsuariosPage() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-[var(--primary)] font-merriweather">
-          👥 Usuários
+        <h1 className="text-2xl font-bold text-[var(--primary)] font-merriweather flex items-center">
+          <Users className="inline-block mr-2 w-7 h-7 mb-1" /> Usuários
         </h1>
         <p className="text-sm text-gray-500 font-poppins mt-1">
           {usuarios.length} usuário{usuarios.length !== 1 ? 's' : ''} cadastrado{usuarios.length !== 1 ? 's' : ''}

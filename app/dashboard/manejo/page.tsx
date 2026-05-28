@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import { Syringe } from 'lucide-react'
 import { createClient } from '@/app/lib/supabase/server'
 import { createAdminClient } from '@/app/lib/supabase/admin'
 import { cookies } from 'next/headers'
@@ -45,7 +46,7 @@ export default async function ManejoPage() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-[var(--primary)] font-merriweather">
+        <h1 className="text-2xl font-bold text-[var(--primary)] font-merriweather flex items-center">
           🐄 Manejo de Gado
         </h1>
         <p className="text-sm text-gray-500 font-poppins mt-1">

@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import { ClipboardList } from 'lucide-react'
 import { createClient } from '@/app/lib/supabase/server'
 import { cookies } from 'next/headers'
 import { createAdminClient } from '@/app/lib/supabase/admin'
@@ -70,8 +71,8 @@ export default async function LotesPage() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-[var(--primary)] font-merriweather">
-          📋 Lotes e Piquetes
+        <h1 className="text-2xl font-bold text-[var(--primary)] font-merriweather flex items-center">
+          <ClipboardList className="inline-block mr-2 w-7 h-7 mb-1" /> Lotes e Piquetes
         </h1>
         <p className="text-sm text-gray-500 font-poppins mt-1">
           {!fazendaId ? 'Selecione uma fazenda para continuar.' : `${lotes.length} lotes · ${piquetes.length} piquetes cadastrados`}

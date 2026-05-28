@@ -1,4 +1,5 @@
 import { createClient } from '@/app/lib/supabase/server'
+import { Tractor } from 'lucide-react'
 import { cookies } from 'next/headers'
 import AtividadesClient, { type Atividade } from './AtividadesClient'
 
@@ -79,8 +80,8 @@ export default async function AtividadesPage() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-[var(--primary)] font-merriweather">
-          🚜 Atividades no Campo
+        <h1 className="text-2xl font-bold text-[var(--primary)] font-merriweather flex items-center">
+          <Tractor className="inline-block mr-2 w-7 h-7 mb-1" /> Atividades no Campo
         </h1>
         <p className="text-sm text-gray-500 font-poppins mt-1">
           {!fazendaId ? 'Selecione uma fazenda para continuar.' : `Últimos ${atividades.length} registros`}

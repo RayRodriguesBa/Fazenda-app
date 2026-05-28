@@ -1,4 +1,5 @@
 import { createClient } from '@/app/lib/supabase/server'
+import { CloudRain } from 'lucide-react'
 import { cookies } from 'next/headers'
 import ChuvaClient, { type RegistroChuva } from './ChuvaClient'
 
@@ -61,8 +62,8 @@ export default async function ChuvaPage({
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-[var(--primary)] font-merriweather">
-          🌧️ Registro de Chuva
+        <h1 className="text-2xl font-bold text-[var(--primary)] font-merriweather flex items-center">
+          <CloudRain className="inline-block mr-2 w-7 h-7 mb-1" /> Registro de Chuva
         </h1>
         <p className="text-sm text-gray-500 font-poppins mt-1">
           {!fazendaId ? 'Selecione uma fazenda para continuar.' : `Últimos ${lista.length} registros`}

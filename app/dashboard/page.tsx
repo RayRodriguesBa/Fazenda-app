@@ -1,4 +1,5 @@
 import { createClient } from '@/app/lib/supabase/server'
+import { Home } from 'lucide-react'
 import Link from 'next/link'
 
 type ModuleCard = {
@@ -68,7 +69,7 @@ export default async function DashboardPage() {
   return (
     <div>
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-[var(--primary)] font-merriweather">
+        <h1 className="text-2xl font-bold text-[var(--primary)] font-merriweather flex items-center">
           Olá, {primeiroNome}! 👋
         </h1>
         <p className="text-[var(--text)] opacity-70 font-poppins mt-1">

@@ -4,24 +4,26 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useState } from 'react'
 
+import { Home, CloudRain, PawPrint, Syringe, Wheat, Tractor, Package, ClipboardList, Map, Users, LogOut } from 'lucide-react'
+
 type NavItem = {
   href: string
   label: string
-  icon: string
+  icon: React.ElementType
   gestorOnly?: boolean
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { href: '/dashboard', label: 'Início', icon: '🏠' },
-  { href: '/dashboard/chuva', label: 'Chuva', icon: '🌧️' },
-  { href: '/dashboard/movimentacao', label: 'Gado', icon: '🐄' },
-  { href: '/dashboard/manejo', label: 'Manejo', icon: '💉' },
-  { href: '/dashboard/cocho', label: 'Cocho', icon: '🌽' },
-  { href: '/dashboard/atividades', label: 'Atividades', icon: '🚜' },
-  { href: '/dashboard/produtos', label: 'Produtos', icon: '🧪' },
-  { href: '/dashboard/lotes', label: 'Lotes/Piquetes', icon: '📋', gestorOnly: true },
-  { href: '/dashboard/fazendas', label: 'Fazendas', icon: '🌾', gestorOnly: true },
-  { href: '/dashboard/usuarios', label: 'Usuários', icon: '👥', gestorOnly: true },
+  { href: '/dashboard', label: 'Início', icon: Home },
+  { href: '/dashboard/chuva', label: 'Chuva', icon: CloudRain },
+  { href: '/dashboard/movimentacao', label: 'Gado', icon: PawPrint },
+  { href: '/dashboard/manejo', label: 'Manejo', icon: Syringe },
+  { href: '/dashboard/cocho', label: 'Cocho', icon: Wheat },
+  { href: '/dashboard/atividades', label: 'Atividades', icon: Tractor },
+  { href: '/dashboard/produtos', label: 'Produtos', icon: Package },
+  { href: '/dashboard/lotes', label: 'Lotes/Piquetes', icon: ClipboardList, gestorOnly: true },
+  { href: '/dashboard/fazendas', label: 'Fazendas', icon: Map, gestorOnly: true },
+  { href: '/dashboard/usuarios', label: 'Usuários', icon: Users, gestorOnly: true },
 ]
 
 type Fazenda = {
@@ -82,7 +84,7 @@ export default function DashboardNav({ isGestor, nome, fazendas, activeFazendaId
               disabled={loggingOut}
               className="flex items-center gap-1.5 text-white/80 hover:text-white text-sm font-poppins transition-colors disabled:opacity-50"
             >
-              <span className="text-base">🚪</span>
+              <LogOut className="w-4 h-4" />
               <span>{loggingOut ? 'Saindo...' : 'Sair'}</span>
             </button>
           </div>
@@ -149,7 +151,7 @@ export default function DashboardNav({ isGestor, nome, fazendas, activeFazendaId
                   : 'text-white/80 hover:bg-white/10 hover:text-white'
               }`}
             >
-              <span className="text-lg">{item.icon}</span>
+              <item.icon className="w-5 h-5" />
               {item.label}
             </Link>
           ))}
@@ -161,7 +163,7 @@ export default function DashboardNav({ isGestor, nome, fazendas, activeFazendaId
             disabled={loggingOut}
             className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-white/80 hover:bg-white/10 hover:text-white font-poppins text-sm transition-colors disabled:opacity-50"
           >
-            <span className="text-lg">🚪</span>
+            <LogOut className="w-5 h-5" />
             {loggingOut ? 'Saindo...' : 'Sair'}
           </button>
         </div>
@@ -181,9 +183,9 @@ export default function DashboardNav({ isGestor, nome, fazendas, activeFazendaId
                 isActive(item.href) ? 'text-white' : 'text-white/60'
               }`}
             >
-              <span className={`text-xl leading-none ${isActive(item.href) ? 'scale-110' : ''} transition-transform`}>
-                {item.icon}
-              </span>
+              <div className={`flex items-center justify-center w-6 h-6 ${isActive(item.href) ? 'scale-110' : ''} transition-transform`}>
+                <item.icon className="w-5 h-5" />
+              </div>
               <span className="text-[10px] font-poppins leading-none whitespace-nowrap">{item.label}</span>
             </Link>
           ))}
