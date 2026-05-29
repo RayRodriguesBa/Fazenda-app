@@ -1,5 +1,4 @@
 import { createClient } from '@/app/lib/supabase/server'
-import { createAdminClient } from '@/app/lib/supabase/admin'
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 
@@ -35,26 +34,13 @@ export async function PUT(
       return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
     }
 
-    const novoNumAnimais = num_animais ? Number(num_animais) : null
-    const novoPesoMedio = peso_medio_kg ? Number(peso_medio_kg) : null
-
-    const adminSupabase = createAdminClient()
-
-    // Buscar o último snapshot para comparar
-    const { data: lastSnapshot } = await adminSupabase
-      .from('lote_snapshot')
-      .select('num_animais, peso_medio_kg')
-      .eq('lote_id', id)
-      .order('data', { ascending: false })
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single()
-
     const { error } = await supabase
       .from('lote')
       .update({
         nome: nome.trim(),
         descricao: descricao?.trim() || null,
+        num_animais: num_animais ? Number(num_animais) : null,
+        peso_medio_kg: peso_medio_kg ? Number(peso_medio_kg) : null,
         ativo: ativo ?? true,
       })
       .eq('id', id)
@@ -68,30 +54,10 @@ export async function PUT(
       return NextResponse.json({ error: 'Erro ao atualizar lote' }, { status: 500 })
     }
 
-    const differsFromLast = !lastSnapshot || 
-      lastSnapshot.num_animais !== novoNumAnimais || 
-      lastSnapshot.peso_medio_kg !== novoPesoMedio
-
-    if (differsFromLast && (novoNumAnimais !== null || novoPesoMedio !== null)) {
-      const { error: snapshotError } = await adminSupabase.from('lote_snapshot').insert({
-        fazenda_id,
-        lote_id: id,
-        data: new Date().toISOString().split('T')[0],
-        num_animais: novoNumAnimais,
-        peso_medio_kg: novoPesoMedio,
-        tipo_pesagem: 'real',
-        criado_por: user.id
-      })
-
-      if (snapshotError) {
-        console.error('Supabase snapshot error:', snapshotError)
-        return NextResponse.json({ error: 'Erro ao salvar novo histórico do lote' }, { status: 500 })
-      }
-    }
-
     return NextResponse.json({ success: true })
   } catch (err) {
     console.error('PUT /api/lotes/[id] error:', err)
     return NextResponse.json({ error: 'Erro interno no servidor' }, { status: 500 })
   }
 }
+

@@ -1,5 +1,4 @@
 import { createClient } from '@/app/lib/supabase/server'
-import { createAdminClient } from '@/app/lib/supabase/admin'
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 
@@ -52,6 +51,7 @@ export async function POST(request: NextRequest) {
     const lotesParaInserir = lotesValidos.map((l) => ({
       nome: l.nome.trim(),
       sexo: l.sexo?.trim() || null,
+      num_animais: l.num_animais ?? null,
       fazenda_id,
     }))
 
@@ -64,32 +64,11 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    const { data: lotesInseridos, error } = await supabase.from('lote').insert(lotesParaInserir).select('id, nome')
+    const { error } = await supabase.from('lote').insert(lotesParaInserir)
 
-    if (error || !lotesInseridos) {
+    if (error) {
       console.error('Supabase error (importar lotes):', error)
       return NextResponse.json({ error: 'Erro ao importar lotes' }, { status: 500 })
-    }
-
-    const snapshotsParaInserir = lotesInseridos.map(loteInserido => {
-      const loteOriginal = lotesValidos.find(l => l.nome.trim().toLowerCase() === loteInserido.nome.toLowerCase())
-      return {
-        fazenda_id,
-        lote_id: loteInserido.id,
-        data: new Date().toISOString().split('T')[0],
-        num_animais: loteOriginal?.num_animais ?? 0,
-        peso_medio_kg: null,
-        tipo_pesagem: 'real',
-        criado_por: user.id
-      }
-    })
-
-    if (snapshotsParaInserir.length > 0) {
-      const adminSupabase = createAdminClient()
-      const { error: snapshotError } = await adminSupabase.from('lote_snapshot').insert(snapshotsParaInserir)
-      if (snapshotError) {
-         console.error('Supabase error (importar snapshots):', snapshotError)
-      }
     }
 
     return NextResponse.json({
@@ -102,3 +81,4 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Erro interno no servidor' }, { status: 500 })
   }
 }
+

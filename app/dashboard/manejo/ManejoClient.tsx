@@ -23,6 +23,8 @@ type FormPayload = {
   lote_id: string
   data: string
   pesagem_kg: number | null
+  num_animais: number | null
+  peso_medio_kg: number | null
   observacao: string | null
   atividades: {
     tipo: string
@@ -46,6 +48,8 @@ export default function ManejoClient({
   const [data, setData] = useState(hoje)
   const [loteId, setLoteId] = useState('')
   const [pesagem, setPesagem] = useState('')
+  const [numAnimais, setNumAnimais] = useState('')
+  const [pesoMedio, setPesoMedio] = useState('')
   const [observacao, setObservacao] = useState('')
   const [atividades, setAtividades] = useState<AtividadeFormItem[]>([])
 
@@ -97,6 +101,8 @@ export default function ManejoClient({
     data !== '' &&
     loteId !== '' &&
     (!pesagem || Number(pesagem) > 0) &&
+    (!numAnimais || Number(numAnimais) >= 0) &&
+    (!pesoMedio || Number(pesoMedio) > 0) &&
     isAtividadesValidas()
 
   const handleSalvar = async () => {
@@ -108,6 +114,8 @@ export default function ManejoClient({
         lote_id: loteId,
         data,
         pesagem_kg: pesagem ? Number(pesagem) : null,
+        num_animais: numAnimais ? Number(numAnimais) : null,
+        peso_medio_kg: pesoMedio ? Number(pesoMedio) : null,
         observacao: observacao.trim() || null,
         atividades: atividades.map(a => ({
           tipo: a.tipo,
@@ -130,6 +138,8 @@ export default function ManejoClient({
       setLoteId('')
       setData(hoje)
       setPesagem('')
+      setNumAnimais('')
+      setPesoMedio('')
       setObservacao('')
       setAtividades([])
       
@@ -185,7 +195,7 @@ export default function ManejoClient({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {/* Pesagem */}
           <div>
             <label className="block text-sm font-medium text-[var(--text)] mb-1 font-poppins">
@@ -198,6 +208,39 @@ export default function ManejoClient({
               placeholder="Ex: 250"
               min="0.1"
               step="0.01"
+              disabled={loading}
+              className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg font-poppins text-sm focus:outline-none focus:border-[var(--primary)] disabled:bg-gray-100 transition"
+            />
+          </div>
+
+          {/* Nº de Animais */}
+          <div>
+            <label className="block text-sm font-medium text-[var(--text)] mb-1 font-poppins">
+              Nº de Animais <span className="text-gray-400 font-normal">(opcional)</span>
+            </label>
+            <input
+              type="number"
+              value={numAnimais}
+              onChange={(e) => setNumAnimais(e.target.value)}
+              placeholder="Ex: 50"
+              min="0"
+              disabled={loading}
+              className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg font-poppins text-sm focus:outline-none focus:border-[var(--primary)] disabled:bg-gray-100 transition"
+            />
+          </div>
+
+          {/* Peso Médio */}
+          <div>
+            <label className="block text-sm font-medium text-[var(--text)] mb-1 font-poppins">
+              Peso Médio (kg) <span className="text-gray-400 font-normal">(opcional)</span>
+            </label>
+            <input
+              type="number"
+              value={pesoMedio}
+              onChange={(e) => setPesoMedio(e.target.value)}
+              placeholder="Ex: 380"
+              min="0.1"
+              step="0.1"
               disabled={loading}
               className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg font-poppins text-sm focus:outline-none focus:border-[var(--primary)] disabled:bg-gray-100 transition"
             />

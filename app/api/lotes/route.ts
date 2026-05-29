@@ -1,5 +1,4 @@
 import { createClient } from '@/app/lib/supabase/server'
-import { createAdminClient } from '@/app/lib/supabase/admin'
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 
@@ -31,36 +30,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
     }
 
-    const { data: loteData, error: loteError } = await supabase.from('lote').insert({
+    const { error } = await supabase.from('lote').insert({
       nome: nome.trim(),
       descricao: descricao?.trim() || null,
+      num_animais: num_animais ? Number(num_animais) : null,
+      peso_medio_kg: peso_medio_kg ? Number(peso_medio_kg) : null,
       fazenda_id,
-    }).select('id').single()
+    })
 
-    if (loteError) {
-      if (loteError.code === '23505') {
+    if (error) {
+      if (error.code === '23505') {
         return NextResponse.json({ error: 'Já existe um lote com este nome.' }, { status: 400 })
       }
-      console.error('Supabase error:', loteError)
+      console.error('Supabase error:', error)
       return NextResponse.json({ error: 'Erro ao salvar lote' }, { status: 500 })
-    }
-
-    if (num_animais || peso_medio_kg) {
-      const adminSupabase = createAdminClient()
-      const { error: snapshotError } = await adminSupabase.from('lote_snapshot').insert({
-        fazenda_id,
-        lote_id: loteData.id,
-        data: new Date().toISOString().split('T')[0],
-        num_animais: num_animais ? Number(num_animais) : null,
-        peso_medio_kg: peso_medio_kg ? Number(peso_medio_kg) : null,
-        tipo_pesagem: 'real',
-        criado_por: user.id
-      })
-
-      if (snapshotError) {
-        console.error('Supabase snapshot error:', snapshotError)
-        return NextResponse.json({ error: 'Erro ao salvar informações do lote' }, { status: 500 })
-      }
     }
 
     return NextResponse.json({ success: true }, { status: 201 })
@@ -69,3 +52,4 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Erro interno no servidor' }, { status: 500 })
   }
 }
+

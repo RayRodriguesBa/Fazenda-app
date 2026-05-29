@@ -2,7 +2,6 @@ import { redirect } from 'next/navigation'
 import { ClipboardList } from 'lucide-react'
 import { createClient } from '@/app/lib/supabase/server'
 import { cookies } from 'next/headers'
-import { createAdminClient } from '@/app/lib/supabase/admin'
 import LotesClient, { type Lote, type Piquete } from './LotesClient'
 
 export default async function LotesPage() {
@@ -28,10 +27,10 @@ export default async function LotesPage() {
   let movimentacoes: any[] = []
 
   if (fazendaId) {
-    const [resLotes, resPiquetes, resMov, resSnapshots] = await Promise.all([
+    const [resLotes, resPiquetes, resMov] = await Promise.all([
       supabase
         .from('lote')
-        .select('id, nome, descricao, sexo, ativo')
+        .select('id, nome, descricao, num_animais, peso_medio_kg, sexo, ativo')
         .eq('fazenda_id', fazendaId)
         .order('nome'),
       supabase
@@ -45,25 +44,9 @@ export default async function LotesPage() {
         .eq('fazenda_id', fazendaId)
         .order('data', { ascending: true })
         .order('created_at', { ascending: true }),
-      createAdminClient()
-        .from('lote_snapshot')
-        .select('lote_id, num_animais, peso_medio_kg, data, created_at')
-        .eq('fazenda_id', fazendaId)
-        .order('data', { ascending: false })
-        .order('created_at', { ascending: false })
     ])
-    
-    const snapshots = resSnapshots.data || []
-    
-    lotes = (resLotes.data || []).map(lote => {
-      const latestSnapshot = snapshots.find(s => s.lote_id === lote.id)
-      return {
-        ...lote,
-        num_animais: latestSnapshot ? latestSnapshot.num_animais : null,
-        peso_medio_kg: latestSnapshot ? latestSnapshot.peso_medio_kg : null
-      }
-    }) as Lote[]
 
+    lotes = (resLotes.data || []) as Lote[]
     piquetes = resPiquetes.data || []
     movimentacoes = resMov.data || []
   }
@@ -83,3 +66,4 @@ export default async function LotesPage() {
     </div>
   )
 }
+

@@ -5,7 +5,7 @@ import { cookies } from 'next/headers'
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { lote_id, data, pesagem_kg, observacao, atividades } = body
+    const { lote_id, data, pesagem_kg, num_animais, peso_medio_kg, observacao, atividades } = body
 
     if (!lote_id || !data) {
       return NextResponse.json(
@@ -44,6 +44,9 @@ export async function POST(request: NextRequest) {
         lote_id,
         data,
         pesagem_kg: pesagem_kg || null,
+        num_animais: num_animais ? Number(num_animais) : null,
+        peso_medio_kg: peso_medio_kg ? Number(peso_medio_kg) : null,
+        tipo_pesagem: 'real',
         observacao: observacao || null
       })
       .select('id')
