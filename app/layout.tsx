@@ -31,13 +31,13 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "Fazenda Viçosa",
+  title: "Pecuária F3",
   description: "Plataforma de gestão para propriedades rurais",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Fazenda Viçosa",
+    title: "Pecuária F3",
   },
   other: {
     "mobile-web-app-capable": "yes",

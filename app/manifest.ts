@@ -2,8 +2,8 @@ import type { MetadataRoute } from 'next'
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'Fazenda Viçosa',
-    short_name: 'Fazenda',
+    name: 'Pecuária F3',
+    short_name: 'Pecuária F3',
     description: 'Plataforma de gestão para propriedades rurais',
     start_url: '/dashboard',
     display: 'standalone',

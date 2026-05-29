@@ -61,7 +61,7 @@ function FazendaForm({
             type="text"
             value={campos.nome}
             onChange={(e) => setCampos({ ...campos, nome: e.target.value })}
-            placeholder="Ex: Fazenda Viçosa"
+            placeholder="Ex: Pecuária F3"
             disabled={loading}
             className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg font-poppins text-sm focus:outline-none focus:border-[var(--primary)] disabled:bg-gray-100 transition"
           />

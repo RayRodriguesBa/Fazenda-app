@@ -43,13 +43,13 @@ export default function LoginForm() {
   }
 
   return (
-    <div className="flex items-center justify-center px-4 py-8 sm:py-0">
-      <div className="w-full max-w-[400px]">
-        <div className="mb-8 text-center">
-          <h1 className="text-3xl font-bold text-[var(--primary)] font-merriweather">
-            🌾 Fazenda Viçosa
-          </h1>
-        </div>
+    <div className="w-full">
+      <div className="mb-8 text-center flex flex-col items-center">
+        <img src="/imagens/LogoPecuariaF3.jpeg" alt="Logo Pecuária F3" className="w-64 h-auto object-contain mb-4 rounded-xl" />
+        <h1 className="text-3xl font-bold text-[var(--primary)] font-merriweather hidden">
+          Pecuária F3
+        </h1>
+      </div>
 
         <h2 className="text-2xl font-semibold text-[var(--text)] mb-6 font-poppins text-center">
           Bem-vindo de volta
@@ -136,9 +136,8 @@ export default function LoginForm() {
         </form>
 
         <p className="text-center text-sm text-gray-500 mt-6 font-poppins">
-          Produto Fazenda Viçosa © 2025
+          Produto Pecuária F3 © 2025
         </p>
-      </div>
     </div>
   )
 }
