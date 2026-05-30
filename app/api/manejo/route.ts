@@ -5,7 +5,7 @@ import { cookies } from 'next/headers'
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { lote_id, data, pesagem_kg, num_animais, peso_medio_kg, observacao, atividades } = body
+    const { lote_id, data, num_animais, peso_medio_kg, tipo_pesagem, observacao, atividades } = body
 
     if (!lote_id || !data) {
       return NextResponse.json(
@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
 
     // Validação de negócio (Atividades duplicadas)
     if (atividades && Array.isArray(atividades)) {
-      const tipos = atividades.map(a => a.tipo).filter(Boolean)
+      const tipos = atividades.map((a: { tipo: string }) => a.tipo).filter(Boolean)
       const tiposUnicos = new Set(tipos)
       if (tipos.length !== tiposUnicos.size) {
         return NextResponse.json(
@@ -36,38 +36,56 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 1. Insert em manejo
-    const { data: manejoInsert, error: manejoError } = await supabase
-      .from('manejo')
-      .insert({
-        fazenda_id,
-        lote_id,
-        data,
-        pesagem_kg: pesagem_kg || null,
-        num_animais: num_animais ? Number(num_animais) : null,
-        peso_medio_kg: peso_medio_kg ? Number(peso_medio_kg) : null,
-        tipo_pesagem: 'real',
-        observacao: observacao || null
-      })
-      .select('id')
-      .single()
-
-    if (manejoError || !manejoInsert) {
-      console.error('Supabase error (manejo):', manejoError)
-      return NextResponse.json({ error: 'Erro ao salvar o manejo' }, { status: 500 })
+    // Validação de tipo_pesagem
+    const tipoPesagemValido = ['real', 'simulada']
+    if (tipo_pesagem && !tipoPesagemValido.includes(tipo_pesagem)) {
+      return NextResponse.json(
+        { error: 'Tipo de pesagem inválido. Valores aceitos: real, simulada' },
+        { status: 400 }
+      )
     }
 
-    const manejoId = manejoInsert.id
+    const temPesagem = num_animais != null || peso_medio_kg != null
+    const temAtividades = atividades && Array.isArray(atividades) && atividades.length > 0
 
-    // 2. Insert em manejo_atividade e produtos
-    if (atividades && Array.isArray(atividades)) {
+    if (!temPesagem && !temAtividades) {
+      return NextResponse.json(
+        { error: 'Informe ao menos um lançamento de pesagem ou uma atividade' },
+        { status: 400 }
+      )
+    }
+
+    // 1. Insert em manejo_lancamentos (se houver dados de pesagem)
+    if (temPesagem) {
+      const { error: lancamentoError } = await supabase
+        .from('manejo_lancamentos')
+        .insert({
+          fazenda_id,
+          lote_id,
+          data,
+          num_animais: num_animais != null ? Number(num_animais) : null,
+          peso_medio_kg: peso_medio_kg != null ? Number(peso_medio_kg) : null,
+          tipo_pesagem: tipo_pesagem || 'real',
+          observacao: observacao?.trim() || null
+        })
+
+      if (lancamentoError) {
+        console.error('Supabase error (manejo_lancamentos):', lancamentoError)
+        return NextResponse.json({ error: 'Erro ao salvar lançamento de pesagem' }, { status: 500 })
+      }
+    }
+
+    // 2. Insert em manejo_atividade + manejo_atividade_produto (independentes)
+    if (temAtividades) {
       for (const ativ of atividades) {
-        if (!ativ.tipo) continue // Pula se não tiver tipo definido
+        if (!ativ.tipo) continue
 
         const { data: ativInsert, error: ativError } = await supabase
           .from('manejo_atividade')
           .insert({
-            manejo_id: manejoId,
+            fazenda_id,
+            lote_id,
+            data,
             tipo: ativ.tipo
           })
           .select('id')
@@ -75,8 +93,6 @@ export async function POST(request: NextRequest) {
 
         if (ativError || !ativInsert) {
           console.error('Supabase error (manejo_atividade):', ativError)
-          // Falhou em inserir a atividade, mas o manejo principal já foi criado. 
-          // Idealmente seria uma transação, mas por limitação da API REST fazemos sequencial.
           continue
         }
 
@@ -84,9 +100,8 @@ export async function POST(request: NextRequest) {
 
         // 3. Insert em manejo_atividade_produto
         if (ativ.produtos_ids && Array.isArray(ativ.produtos_ids) && ativ.produtos_ids.length > 0) {
-          // Filtra produtos duplicados
-          const produtosUnicos = Array.from(new Set(ativ.produtos_ids))
-          const produtosPayload = produtosUnicos.map(pid => ({
+          const produtosUnicos = Array.from(new Set(ativ.produtos_ids as string[]))
+          const produtosPayload = produtosUnicos.map((pid: string) => ({
             manejo_atividade_id: manejoAtividadeId,
             produto_id: pid
           }))
