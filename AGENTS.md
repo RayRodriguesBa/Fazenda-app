@@ -114,6 +114,8 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - **Validação Rigorosa:** Bloqueio de datas futuras e de inputs negativos. Botão de "Salvar" (`submit`) deve permanecer desabilitado se os dados obrigatórios não forem preenchidos.
 - **UI Otimista / Server Refresh:** Após qualquer mutação (POST/PUT/DELETE) bem sucedida no client, chamar `router.refresh()` para refletir instantaneamente a atualização no banco.
 - **Backend For Frontend (BFF):** Nenhuma mutação é feita diretamente do client para o Supabase. Todas as operações passam por Route Handlers (`/api/*`).
+- **Testes de Regressão:** Toda vez que um bug for corrigido, DEVE ser criado um teste de regressão correspondente para garantir que aquele problema não retorne.
+- **Ferramentas de Qualidade:** Antes de realizar qualquer `git push`, é OBRIGATÓRIO executar ferramentas de qualidade e cobertura de código (como SimpleCov, ou ferramentas compatíveis com o stack) para garantir que o código passe por verificações antes de ser enviado ao repositório.
 
 ## Tecnologias Usadas
 - **Framework:** Next.js 16.2.4 (App Router)
