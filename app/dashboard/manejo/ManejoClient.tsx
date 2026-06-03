@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 
-export type Lote = { id: string; nome: string }
+export type Lote = { id: string; nome: string; num_animais?: number | null; peso_medio_kg?: number | null }
 export type Produto = { id: string; nome: string; categoria: string }
 
 export type RegistroLancamento = {
@@ -98,6 +98,21 @@ function LancamentoForm({
 
   const isValido = data !== '' && loteId !== '' && (!numAnimais || Number(numAnimais) >= 0) && (!pesoMedio || Number(pesoMedio) > 0)
 
+  const handleLoteChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const novoLoteId = e.target.value
+    setLoteId(novoLoteId)
+    if (!editando) {
+      const loteSelecionado = lotes.find((l) => l.id === novoLoteId)
+      if (loteSelecionado) {
+        setNumAnimais(loteSelecionado.num_animais?.toString() ?? '')
+        setPesoMedio(loteSelecionado.peso_medio_kg?.toString() ?? '')
+      } else {
+        setNumAnimais('')
+        setPesoMedio('')
+      }
+    }
+  }
+
   const handleSalvar = async () => {
     if (!isValido) return
     setLoading(true)
@@ -137,7 +152,7 @@ function LancamentoForm({
         </div>
         <div>
           <label className="block text-sm font-medium text-[var(--text)] mb-1 font-poppins">Lote <span className="text-[var(--error)]">*</span></label>
-          <select value={loteId} onChange={(e) => setLoteId(e.target.value)} disabled={loading || excluindo}
+          <select value={loteId} onChange={handleLoteChange} disabled={loading || excluindo}
             className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg font-poppins text-sm focus:outline-none focus:border-[var(--primary)] disabled:bg-gray-100 transition bg-white">
             <option value="">Selecione...</option>
             {lotes.map((l) => <option key={l.id} value={l.id}>{l.nome}</option>)}

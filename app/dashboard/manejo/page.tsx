@@ -62,7 +62,7 @@ export default async function ManejoPage(props: {
     const [resLotes, resProdutos, resLancamentos, resAtividades] = await Promise.all([
       admin
         .from('lote')
-        .select('id, nome')
+        .select('id, nome, num_animais, peso_medio_kg')
         .eq('ativo', true)
         .eq('fazenda_id', fazendaId)
         .order('nome'),
