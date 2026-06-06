@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 
 export type Movimentacao = {
@@ -17,6 +17,7 @@ export type Movimentacao = {
   lote_id: string
   piquete_id: string
   qualidade: 'Bom' | 'Sementado' | 'Seco' | null
+  foto_url: string | null
   lote: { nome: string }
   piquete: { nome: string }
 }
@@ -45,12 +46,15 @@ function formatarData(dataISO: string) {
   return `${dia}/${mes}/${ano}`
 }
 
+const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50 MB
+
 type FormPayload = {
   data: string; lote_id: string; piquete_id: string
   tipo_operacao: 'Entrada' | 'Saída'
   qualidade: 'Bom' | 'Sementado' | 'Seco' | ''
   observacao: string | null
   altura1: number | null; altura2: number | null; altura3: number | null; altura4: number | null; altura5: number | null
+  foto_url: string | null
 }
 
 function MovimentacaoForm({
@@ -87,6 +91,105 @@ function MovimentacaoForm({
   const [excluindo, setExcluindo] = useState(false)
   const [confirmarExclusao, setConfirmarExclusao] = useState(false)
   const [erro, setErro] = useState('')
+
+  // --- Foto do piquete ---
+  const [fotoPath, setFotoPath] = useState<string | null>(inicial?.foto_url ?? null)
+  const [fotoPreviewUrl, setFotoPreviewUrl] = useState<string | null>(null)
+  const [fotoLocalPreview, setFotoLocalPreview] = useState<string | null>(null)
+  const [uploadingFoto, setUploadingFoto] = useState(false)
+  const [excluindoFoto, setExcluindoFoto] = useState(false)
+  const [fotoLightbox, setFotoLightbox] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const cameraInputRef = useRef<HTMLInputElement>(null)
+
+  // Gera signed URL para fotos existentes
+  useEffect(() => {
+    if (!fotoPath) { setFotoPreviewUrl(null); return }
+    // Se temos preview local, usamos ele em vez de gerar URL
+    if (fotoLocalPreview) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await fetch('/api/movimentacao/imagem/url', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ path: fotoPath }),
+        })
+        if (!res.ok) return
+        const { url } = await res.json()
+        if (!cancelled) setFotoPreviewUrl(url)
+      } catch { /* silently fail */ }
+    })()
+    return () => { cancelled = true }
+  }, [fotoPath, fotoLocalPreview])
+
+  const handleUploadFoto = async (file: File) => {
+    if (file.size > MAX_FILE_SIZE) {
+      setErro('A imagem excede o limite de 50 MB.')
+      return
+    }
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif']
+    if (!allowedTypes.includes(file.type)) {
+      setErro('Formato não suportado. Use JPEG, PNG ou WebP.')
+      return
+    }
+
+    // Preview local imediato
+    const localUrl = URL.createObjectURL(file)
+    setFotoLocalPreview(localUrl)
+    setUploadingFoto(true)
+    setErro('')
+
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const res = await fetch('/api/movimentacao/imagem', {
+        method: 'POST',
+        body: formData,
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error)
+      setFotoPath(json.path)
+    } catch (e: unknown) {
+      setErro(e instanceof Error ? e.message : 'Erro ao enviar imagem')
+      setFotoLocalPreview(null)
+      URL.revokeObjectURL(localUrl)
+    } finally {
+      setUploadingFoto(false)
+    }
+  }
+
+  const handleExcluirFoto = async () => {
+    if (!fotoPath) return
+    setExcluindoFoto(true)
+    setErro('')
+    try {
+      const res = await fetch('/api/movimentacao/imagem', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: fotoPath }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error)
+      if (fotoLocalPreview) URL.revokeObjectURL(fotoLocalPreview)
+      setFotoPath(null)
+      setFotoPreviewUrl(null)
+      setFotoLocalPreview(null)
+      setFotoLightbox(false)
+    } catch (e: unknown) {
+      setErro(e instanceof Error ? e.message : 'Erro ao excluir imagem')
+    } finally {
+      setExcluindoFoto(false)
+    }
+  }
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) handleUploadFoto(file)
+    e.target.value = '' // reset para permitir re-selecionar mesmo arquivo
+  }
+
+  const displayUrl = fotoLocalPreview || fotoPreviewUrl
 
   const mediaPreview = calcularMedia(alturas)
 
@@ -134,6 +237,7 @@ function MovimentacaoForm({
         altura3: alturas.altura3 ? Number(alturas.altura3) : null,
         altura4: alturas.altura4 ? Number(alturas.altura4) : null,
         altura5: alturas.altura5 ? Number(alturas.altura5) : null,
+        foto_url: fotoPath,
       })
     } catch (e: unknown) {
       setErro(e instanceof Error ? e.message : 'Erro ao salvar')
@@ -279,6 +383,153 @@ function MovimentacaoForm({
           />
         </div>
 
+        {/* Foto do Piquete */}
+        <div className="border-t border-gray-100 pt-4">
+          <label className="block text-sm font-medium text-[var(--text)] mb-1 font-poppins">
+            📸 Foto do Piquete
+          </label>
+          <p className="text-xs text-gray-500 font-poppins mb-3">Tire uma foto ou selecione da galeria (máx. 50 MB)</p>
+
+          {/* Inputs de arquivo ocultos */}
+          <input
+            ref={cameraInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={handleFileChange}
+            className="hidden"
+            id="foto-camera-input"
+          />
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+            onChange={handleFileChange}
+            className="hidden"
+            id="foto-galeria-input"
+          />
+
+          {!displayUrl && !uploadingFoto && (
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => cameraInputRef.current?.click()}
+                disabled={loading || excluindo}
+                className="flex-1 flex items-center justify-center gap-2 py-3 border-2 border-dashed border-[var(--primary-light)] rounded-xl text-[var(--primary)] font-poppins font-semibold text-sm hover:bg-green-50 disabled:opacity-50 transition-colors"
+              >
+                <span className="text-lg">📷</span>
+                Câmera
+              </button>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={loading || excluindo}
+                className="flex-1 flex items-center justify-center gap-2 py-3 border-2 border-dashed border-gray-300 rounded-xl text-gray-600 font-poppins font-semibold text-sm hover:bg-gray-50 disabled:opacity-50 transition-colors"
+              >
+                <span className="text-lg">🖼️</span>
+                Galeria
+              </button>
+            </div>
+          )}
+
+          {uploadingFoto && (
+            <div className="flex items-center justify-center gap-3 py-6 bg-gray-50 rounded-xl border-2 border-gray-200">
+              <div className="w-5 h-5 border-2 border-[var(--primary)] border-t-transparent rounded-full animate-spin" />
+              <span className="text-sm text-gray-600 font-poppins">Enviando imagem...</span>
+            </div>
+          )}
+
+          {displayUrl && !uploadingFoto && (
+            <div className="relative group">
+              <button
+                type="button"
+                onClick={() => setFotoLightbox(true)}
+                className="block w-full rounded-xl overflow-hidden border-2 border-gray-200 hover:border-[var(--primary)] transition-colors"
+              >
+                <img
+                  src={displayUrl}
+                  alt="Foto do piquete"
+                  className="w-full h-48 object-cover"
+                />
+              </button>
+              <div className="absolute top-2 right-2 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button
+                  type="button"
+                  onClick={() => setFotoLightbox(true)}
+                  className="p-1.5 bg-black/60 rounded-lg text-white text-xs hover:bg-black/80 transition-colors backdrop-blur-sm"
+                  title="Ampliar imagem"
+                >
+                  🔍
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); handleExcluirFoto() }}
+                  disabled={excluindoFoto}
+                  className="p-1.5 bg-red-600/80 rounded-lg text-white text-xs hover:bg-red-700 disabled:opacity-50 transition-colors backdrop-blur-sm"
+                  title="Excluir imagem"
+                >
+                  {excluindoFoto ? '⏳' : '🗑️'}
+                </button>
+              </div>
+              <div className="mt-2 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleExcluirFoto().then(() => {
+                      // Permitir selecionar nova foto após excluir
+                    })
+                  }}
+                  disabled={excluindoFoto || loading}
+                  className="flex-1 py-1.5 text-xs font-poppins font-semibold text-[var(--error)] border border-red-200 rounded-lg hover:bg-red-50 disabled:opacity-50 transition-colors"
+                >
+                  {excluindoFoto ? 'Excluindo...' : '🗑️ Remover foto'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploadingFoto || loading}
+                  className="flex-1 py-1.5 text-xs font-poppins font-semibold text-[var(--primary)] border border-green-200 rounded-lg hover:bg-green-50 disabled:opacity-50 transition-colors"
+                >
+                  🔄 Trocar foto
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Lightbox */}
+        {fotoLightbox && displayUrl && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+            onClick={() => setFotoLightbox(false)}
+          >
+            <div className="relative max-w-3xl max-h-[90vh] w-full" onClick={(e) => e.stopPropagation()}>
+              <img
+                src={displayUrl}
+                alt="Foto do piquete (ampliada)"
+                className="w-full h-auto max-h-[85vh] object-contain rounded-xl"
+              />
+              <div className="absolute top-3 right-3 flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleExcluirFoto}
+                  disabled={excluindoFoto}
+                  className="px-3 py-1.5 bg-red-600 text-white rounded-lg font-poppins font-semibold text-sm hover:bg-red-700 disabled:opacity-50 transition-colors shadow-lg"
+                >
+                  {excluindoFoto ? 'Excluindo...' : '🗑️ Excluir'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFotoLightbox(false)}
+                  className="px-3 py-1.5 bg-white/90 text-gray-800 rounded-lg font-poppins font-semibold text-sm hover:bg-white transition-colors shadow-lg"
+                >
+                  ✕ Fechar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Alturas — opcional */}
         <div className="border-t border-gray-100 pt-4">
           <label className="block text-sm font-medium text-[var(--text)] mb-1 font-poppins">
@@ -389,7 +640,10 @@ export default function MovimentacaoClient({
   const handleCriar = async (dados: FormPayload) => {
     const res = await fetch('/api/movimentacao', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(dados),
+      body: JSON.stringify({
+        ...dados,
+        foto_url: dados.foto_url,
+      }),
     })
     const json = await res.json()
     if (!res.ok) throw new Error(json.error)
@@ -401,7 +655,10 @@ export default function MovimentacaoClient({
   const handleEditar = async (id: string, dados: FormPayload) => {
     const res = await fetch(`/api/movimentacao/${id}`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(dados),
+      body: JSON.stringify({
+        ...dados,
+        foto_url: dados.foto_url,
+      }),
     })
     const json = await res.json()
     if (!res.ok) throw new Error(json.error)
@@ -570,6 +827,9 @@ export default function MovimentacaoClient({
                           )}
                           {r.media_altura != null && (
                             <span className="text-xs text-gray-500 font-poppins">📏 {Number(r.media_altura).toFixed(1)} cm pasto</span>
+                          )}
+                          {r.foto_url && (
+                            <span className="text-xs text-gray-500 font-poppins">📸 Foto</span>
                           )}
                         </div>
                         {r.observacao && (

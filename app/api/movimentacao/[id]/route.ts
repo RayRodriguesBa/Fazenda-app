@@ -12,6 +12,7 @@ export async function PUT(
       data, lote_id, piquete_id, tipo_operacao,
       qualidade, observacao,
       altura1, altura2, altura3, altura4, altura5,
+      foto_url,
     } = await request.json()
 
     if (!data || !lote_id || !piquete_id || !tipo_operacao) {
@@ -59,6 +60,7 @@ export async function PUT(
         altura3: altura3 ? Number(altura3) : null,
         altura4: altura4 ? Number(altura4) : null,
         altura5: altura5 ? Number(altura5) : null,
+        foto_url: foto_url || null,
       })
       .eq('id', id)
       .eq('fazenda_id', fazenda_id)

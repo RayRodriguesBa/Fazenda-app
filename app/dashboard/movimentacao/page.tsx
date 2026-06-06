@@ -41,7 +41,7 @@ export default async function MovimentacaoPage({
       (() => {
         let q = supabase
           .from('movimentacao_gado')
-          .select('id, data, tipo_operacao, qualidade, media_altura, altura1, altura2, altura3, altura4, altura5, observacao, lote_id, piquete_id, lote(nome), piquete(nome)')
+          .select('id, data, tipo_operacao, qualidade, media_altura, altura1, altura2, altura3, altura4, altura5, observacao, lote_id, piquete_id, foto_url, lote(nome), piquete(nome)')
           .eq('fazenda_id', fazendaId)
           .order('data', { ascending: false })
         if (de) q = q.gte('data', de)
