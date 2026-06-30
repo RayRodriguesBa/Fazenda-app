@@ -43,7 +43,8 @@ export default async function LotesPage() {
         .select('id, data, tipo_operacao, media_altura, lote_id, piquete_id, created_at')
         .eq('fazenda_id', fazendaId)
         .order('data', { ascending: true })
-        .order('created_at', { ascending: true }),
+        .order('created_at', { ascending: true })
+        .range(0, 99999),
     ])
 
     lotes = (resLotes.data || []) as Lote[]
