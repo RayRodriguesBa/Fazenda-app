@@ -104,10 +104,15 @@ function getPastejosDetalhe(movimentacoes: MovimentacaoDetalhe[], lotes: Lote[])
   }
 
   // Sort descending so the most recent pastejo is at index 0
+  // Active pastejos (no saída) always come first
   pastejos.sort((a, b) => {
-    const mostRecentA = a.data_saida ? new Date(a.data_saida).getTime() : (a.data_entrada !== '?' ? new Date(a.data_entrada).getTime() : 0)
-    const mostRecentB = b.data_saida ? new Date(b.data_saida).getTime() : (b.data_entrada !== '?' ? new Date(b.data_entrada).getTime() : 0)
-    return mostRecentB - mostRecentA
+    const aAberto = !a.data_saida
+    const bAberto = !b.data_saida
+    if (aAberto && !bAberto) return -1
+    if (!aAberto && bAberto) return 1
+    const dateA = a.data_entrada !== '?' ? new Date(a.data_entrada).getTime() : 0
+    const dateB = b.data_entrada !== '?' ? new Date(b.data_entrada).getTime() : 0
+    return dateB - dateA
   })
 
   return pastejos
