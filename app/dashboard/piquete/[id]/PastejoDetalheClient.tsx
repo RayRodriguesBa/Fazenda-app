@@ -86,6 +86,13 @@ function getPastejosDetalhe(movimentacoes: MovimentacaoDetalhe[], lotes: Lote[])
     }
   }
 
+  // Sort pastejos chronologically first for rest-day calculation
+  pastejos.sort((a, b) => {
+    const dateA = a.data_entrada !== '?' ? new Date(a.data_entrada).getTime() : 0
+    const dateB = b.data_entrada !== '?' ? new Date(b.data_entrada).getTime() : 0
+    return dateA - dateB
+  })
+
   for (let i = 1; i < pastejos.length; i++) {
     const prev = pastejos[i - 1]
     const curr = pastejos[i]
@@ -96,7 +103,14 @@ function getPastejosDetalhe(movimentacoes: MovimentacaoDetalhe[], lotes: Lote[])
     }
   }
 
-  return pastejos.reverse()
+  // Sort descending so the most recent pastejo is at index 0
+  pastejos.sort((a, b) => {
+    const mostRecentA = a.data_saida ? new Date(a.data_saida).getTime() : (a.data_entrada !== '?' ? new Date(a.data_entrada).getTime() : 0)
+    const mostRecentB = b.data_saida ? new Date(b.data_saida).getTime() : (b.data_entrada !== '?' ? new Date(b.data_entrada).getTime() : 0)
+    return mostRecentB - mostRecentA
+  })
+
+  return pastejos
 }
 
 export default function PastejoDetalheClient({
