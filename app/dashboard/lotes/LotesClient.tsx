@@ -541,9 +541,27 @@ export default function LotesClient({
     })
     .sort((a, b) => {
       const getStatus = (id: string) => {
-        const last = getPastejos(id)[0]
-        if (!last) return { isOcupado: false, dias: -1 }
+        const pastejos = getPastejos(id)
+        if (!pastejos.length) return { isOcupado: false, dias: -1 }
         
+        // Detect orphan open pastejos
+        const latestCompletedSaida = pastejos
+          .filter(p => !!p.data_saida)
+          .reduce((max, p) => {
+            const d = new Date(p.data_saida!).getTime()
+            return d > max ? d : max
+          }, 0)
+        
+        for (const p of pastejos) {
+          if (!p.data_saida && p.data_entrada !== '?') {
+            if (latestCompletedSaida > new Date(p.data_entrada).getTime()) {
+              p.data_saida = p.data_entrada
+              p.dias_ocupado = 0
+            }
+          }
+        }
+
+        const last = pastejos[0]
         const now = new Date().getTime()
         const isOcupado = !last.data_saida
         
@@ -1091,6 +1109,26 @@ export default function LotesClient({
                 }
 
                 const allPastejos = getPastejos(piquete.id)
+                // Filter out orphan "open" pastejos: if a completed pastejo has a saída date
+                // after an open pastejo's entrada date, the open one is orphaned imported data
+                const latestCompletedSaida = allPastejos
+                  .filter(p => !!p.data_saida)
+                  .reduce((max, p) => {
+                    const d = new Date(p.data_saida!).getTime()
+                    return d > max ? d : max
+                  }, 0)
+                
+                for (const p of allPastejos) {
+                  if (!p.data_saida && p.data_entrada !== '?') {
+                    const entradaTime = new Date(p.data_entrada).getTime()
+                    if (latestCompletedSaida > entradaTime) {
+                      // This open pastejo is older than a completed one — it's orphaned data
+                      p.data_saida = p.data_entrada // mark as closed (same-day)
+                      p.dias_ocupado = 0
+                    }
+                  }
+                }
+
                 const lastPastejo = allPastejos[0]
                 const isOcupado = lastPastejo && !lastPastejo.data_saida
                 const diasDescanso = (!isOcupado && lastPastejo?.data_saida) ? Math.max(0, Math.floor((new Date().getTime() - new Date(lastPastejo.data_saida).getTime()) / 86400000)) : 0
