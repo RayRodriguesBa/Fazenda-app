@@ -1135,7 +1135,6 @@ export default function LotesClient({
                           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider font-poppins mb-2">Pastejo Atual</p>
                           <div className="flex items-center gap-2 mb-2.5">
                             <span className="text-xs font-semibold font-poppins text-[var(--text)] bg-gray-100 px-2 py-0.5 rounded">{lastPastejo.lote_nome}</span>
-                            <span className="text-[11px] text-gray-500 font-poppins">desde {formatarData(lastPastejo.data_entrada)}</span>
                           </div>
                           <div className="grid grid-cols-2 gap-2">
                             <div className="bg-gray-50 rounded-lg p-2.5 border border-gray-100 text-center">
