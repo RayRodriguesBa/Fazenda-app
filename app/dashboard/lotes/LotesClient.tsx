@@ -455,13 +455,19 @@ export default function LotesClient({
 
   const getPastejos = (piqueteId: string): Pastejo[] => {
     if (!movimentacoes) return []
-    const movs = movimentacoes.filter(m => m.piquete_id === piqueteId)
+    const movs = movimentacoes
+      .filter(m => m.piquete_id === piqueteId)
+      .sort((a, b) => new Date(a.data).getTime() - new Date(b.data).getTime())
     const pastejos: Pastejo[] = []
     const abertos: Record<string, Pastejo> = {}
 
     for (const mov of movs) {
       const loteNome = lotes.find(l => l.id === mov.lote_id)?.nome || 'Lote Desconhecido'
       if (mov.tipo_operacao === 'Entrada') {
+        // If there's already an open pastejo for this lote, close it implicitly
+        if (abertos[mov.lote_id]) {
+          delete abertos[mov.lote_id]
+        }
         const p: Pastejo = {
           lote_id: mov.lote_id,
           lote_nome: loteNome,

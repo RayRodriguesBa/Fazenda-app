@@ -40,11 +40,18 @@ function getPastejosDetalhe(movimentacoes: MovimentacaoDetalhe[], lotes: Lote[])
   const pastejos: PastejoDetalhe[] = []
   const abertos: Record<string, PastejoDetalhe> = {}
 
-  for (const mov of movimentacoes) {
+  // Sort by date ascending before pairing entries with exits
+  const movsSorted = [...movimentacoes].sort((a, b) => new Date(a.data).getTime() - new Date(b.data).getTime())
+
+  for (const mov of movsSorted) {
     const loteNome = lotes.find(l => l.id === mov.lote_id)?.nome || 'Lote Desconhecido'
     const alturas: (number | null)[] = [mov.altura1, mov.altura2, mov.altura3, mov.altura4, mov.altura5]
 
     if (mov.tipo_operacao === 'Entrada') {
+      // If there's already an open pastejo for this lote, close it implicitly
+      if (abertos[mov.lote_id]) {
+        delete abertos[mov.lote_id]
+      }
       const p: PastejoDetalhe = {
         lote_id: mov.lote_id,
         lote_nome: loteNome,
