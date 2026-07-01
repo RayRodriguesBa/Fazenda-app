@@ -45,6 +45,11 @@ type Tab = 'lotes' | 'piquetes' | 'analise_pastejo'
 const CAMPO_VAZIO_LOTE = { nome: '', descricao: '', num_animais: '', peso_medio_kg: '' }
 const CAMPO_VAZIO_PIQUETE = { nome: '', area_ha: '' }
 
+/** Natural sort comparator: P1, P2, P3... P10, P11 instead of P1, P10, P11, P2 */
+function naturalSort(a: string, b: string): number {
+  return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
+}
+
 function LoteForm({
   inicial,
   onSalvar,
@@ -909,7 +914,7 @@ export default function LotesClient({
             </div>
           ) : (
             <div className="space-y-3">
-              {lotes.map((lote) => (
+              {[...lotes].sort((a, b) => naturalSort(a.nome, b.nome)).map((lote) => (
                 <div key={lote.id}>
                   {editandoLote?.id === lote.id ? (
                     <LoteForm
@@ -999,7 +1004,7 @@ export default function LotesClient({
             </div>
           ) : (
             <div className="space-y-3">
-              {piquetes.map((piquete) => (
+              {[...piquetes].sort((a, b) => naturalSort(a.nome, b.nome)).map((piquete) => (
                 <div key={piquete.id}>
                   {editandoPiquete?.id === piquete.id ? (
                     <PiqueteForm
@@ -1073,7 +1078,7 @@ export default function LotesClient({
             <div className="flex-1 min-w-[150px]">
               <label className="block text-xs font-medium text-[var(--text)] mb-1 font-poppins">Piquetes</label>
               <MultiSelect
-                options={piquetes.map(p => ({ id: p.id, nome: p.nome }))}
+                options={[...piquetes].sort((a, b) => naturalSort(a.nome, b.nome)).map(p => ({ id: p.id, nome: p.nome }))}
                 selectedIds={filtroPiqueteIds}
                 onChange={setFiltroPiqueteIds}
                 placeholder="Todos"
