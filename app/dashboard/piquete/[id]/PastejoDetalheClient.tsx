@@ -137,31 +137,37 @@ export default function PastejoDetalheClient({
   const pastejos = getPastejosDetalhe(movimentacoes, lotes)
 
   return (
-    <div>
-      {/* Info do piquete */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-6">
-        <div className="flex flex-wrap gap-4 text-sm font-poppins text-gray-600">
-          <span>📐 <strong className="text-[var(--text)]">{piquete.area_ha ?? '--'} ha</strong></span>
-          {piquete.forrageira && (
-            <span>🌾 <strong className="text-[var(--text)]">{FORRAGEIRA_LABEL[piquete.forrageira]}</strong></span>
-          )}
-          {piquete.aproveitamento_pasto && (
-            <span>🌿 <strong className="text-[var(--text)]">{piquete.aproveitamento_pasto}% aproveitamento</strong></span>
-          )}
-          {!piquete.ativo && (
-            <span className="text-[10px] font-bold uppercase tracking-wider bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded self-center">Inativo</span>
-          )}
+    <div className="flex flex-col" style={{ height: 'calc(100vh - 180px)' }}>
+      {/* Info do piquete — fixa no topo */}
+      <div className="shrink-0">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-4">
+          <div className="flex flex-wrap gap-4 text-sm font-poppins text-gray-600">
+            <span>📐 <strong className="text-[var(--text)]">{piquete.area_ha ?? '--'} ha</strong></span>
+            {piquete.forrageira && (
+              <span>🌾 <strong className="text-[var(--text)]">{FORRAGEIRA_LABEL[piquete.forrageira]}</strong></span>
+            )}
+            {piquete.aproveitamento_pasto && (
+              <span>🌿 <strong className="text-[var(--text)]">{piquete.aproveitamento_pasto}% aproveitamento</strong></span>
+            )}
+            {!piquete.ativo && (
+              <span className="text-[10px] font-bold uppercase tracking-wider bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded self-center">Inativo</span>
+            )}
+          </div>
         </div>
+
+        {pastejos.length > 0 && (
+          <p className="text-sm text-gray-500 font-poppins mb-3">{pastejos.length} pastejo(s) registrado(s)</p>
+        )}
       </div>
 
+      {/* Lista de pastejos — scrollável */}
       {pastejos.length === 0 ? (
         <div className="text-center py-16 text-gray-400 font-poppins">
           <p className="text-4xl mb-3">🌱</p>
           <p className="text-base">Nenhum pastejo registrado para este piquete.</p>
         </div>
       ) : (
-        <div className="space-y-4">
-          <p className="text-sm text-gray-500 font-poppins">{pastejos.length} pastejo(s) registrado(s)</p>
+        <div className="flex-1 overflow-y-auto space-y-4 pr-1">
           {pastejos.map((p, i) => (
             <div key={i} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
               {/* Header do pastejo */}
@@ -196,8 +202,6 @@ export default function PastejoDetalheClient({
                     <span className="font-semibold text-[var(--text)]">{p.data_saida ? formatarData(p.data_saida) : '—'}</span>
                   </div>
                 </div>
-
-
 
                 {/* Alturas */}
                 <div className="grid grid-cols-2 gap-4">
