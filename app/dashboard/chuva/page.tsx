@@ -31,26 +31,41 @@ export default async function ChuvaPage({
     if (de) query = query.gte('data', de)
     if (ate) query = query.lte('data', ate)
 
+    // Query da última chuva — respeita filtros de data
+    let queryUltimaChuva = supabase
+      .from('chuva')
+      .select('data')
+      .eq('fazenda_id', fazendaId)
+      .gt('volume_mm', 0)
+      .order('data', { ascending: false })
+      .limit(1)
+
+    if (de) queryUltimaChuva = queryUltimaChuva.gte('data', de)
+    if (ate) queryUltimaChuva = queryUltimaChuva.lte('data', ate)
+
     const [res, resUltimaChuva] = await Promise.all([
       query,
-      supabase
-        .from('chuva')
-        .select('data')
-        .eq('fazenda_id', fazendaId)
-        .gt('volume_mm', 0)
-        .order('data', { ascending: false })
-        .limit(1)
-        .single()
+      queryUltimaChuva.single()
     ])
     
     registros = (res.data ?? []) as unknown as RegistroChuva[]
     error = res.error
 
     if (resUltimaChuva.data?.data) {
-      const dataUltima = new Date(resUltimaChuva.data.data)
-      const hoje = new Date()
-      const diffTime = Math.abs(hoje.getTime() - dataUltima.getTime())
+      const dataUltima = new Date(resUltimaChuva.data.data + 'T00:00:00')
+      // Se tem filtro "até", calcula dias da última chuva até a data final do filtro
+      // Se não, calcula até hoje
+      const dataRef = ate ? new Date(ate + 'T00:00:00') : new Date()
+      const diffTime = Math.abs(dataRef.getTime() - dataUltima.getTime())
       diasSemChuva = Math.floor(diffTime / (1000 * 60 * 60 * 24))
+    } else if (de || ate) {
+      // Nenhuma chuva encontrada no período filtrado
+      const dataInicio = de ? new Date(de + 'T00:00:00') : null
+      const dataFim = ate ? new Date(ate + 'T00:00:00') : new Date()
+      if (dataInicio) {
+        const diffTime = Math.abs(dataFim.getTime() - dataInicio.getTime())
+        diasSemChuva = Math.floor(diffTime / (1000 * 60 * 60 * 24))
+      }
     }
   }
 
