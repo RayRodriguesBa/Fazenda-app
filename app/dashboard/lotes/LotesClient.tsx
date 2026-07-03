@@ -3,6 +3,7 @@
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import ExcelJS from 'exceljs'
+import { ClipboardList } from 'lucide-react'
 
 
 export type Lote = {
@@ -418,11 +419,13 @@ export default function LotesClient({
   piquetes,
   movimentacoes,
   isGestor,
+  fazendaId,
 }: {
   lotes: Lote[]
   piquetes: Piquete[]
   movimentacoes?: any[]
   isGestor?: boolean
+  fazendaId?: string
 }) {
   const router = useRouter()
   const [tab, setTab] = useState<Tab>('lotes')
@@ -771,63 +774,112 @@ export default function LotesClient({
   }
 
   return (
-    <div>
-      {sucesso && (
-        <div className="mb-4 p-3 bg-green-50 border border-green-300 rounded-lg text-green-700 text-sm font-poppins">
-          ✅ {sucesso}
+    <div className="flex flex-col h-[calc(100vh-240px)] lg:h-[calc(100vh-50px)]">
+      {/* TOPO FIXO — nunca rola */}
+      <div className="shrink-0">
+        {/* Cabeçalho da página */}
+        <div className="mb-4">
+          <h1 className="text-2xl font-bold text-[var(--primary)] font-merriweather flex items-center">
+            <ClipboardList className="inline-block mr-2 w-7 h-7 mb-1" /> Lotes e Piquetes
+          </h1>
+          <p className="text-sm text-gray-500 font-poppins mt-1">
+            {!fazendaId ? 'Selecione uma fazenda para continuar.' : `${lotes.length} lotes · ${piquetes.length} piquetes cadastrados`}
+          </p>
         </div>
-      )}
 
-      {/* Tabs */}
-      <div className="flex flex-col sm:flex-row gap-1 bg-gray-100 rounded-xl p-1 mb-6">
-        {(['lotes', 'piquetes', 'analise_pastejo'] as Tab[]).map((t) => (
+        {sucesso && (
+          <div className="mb-3 p-3 bg-green-50 border border-green-300 rounded-lg text-green-700 text-sm font-poppins">
+            ✅ {sucesso}
+          </div>
+        )}
+
+        {/* Tabs */}
+        <div className="flex flex-col sm:flex-row gap-1 bg-gray-100 rounded-xl p-1 mb-4">
+          {(['lotes', 'piquetes', 'analise_pastejo'] as Tab[]).map((t) => (
+            <button
+              key={t}
+              onClick={() => {
+                setTab(t)
+                setShowNovoLote(false)
+                setShowNovoPiquete(false)
+                setEditandoLote(null)
+                setEditandoPiquete(null)
+              }}
+              className={`flex-1 py-2 px-2 text-center rounded-lg font-poppins font-semibold text-sm capitalize transition-colors whitespace-nowrap ${
+                tab === t
+                  ? 'bg-white text-[var(--primary)] shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              {t === 'lotes' ? '📋 Lotes' : t === 'piquetes' ? '🗺️ Piquetes (Básico)' : '📊 Análise de Pastejo'}
+            </button>
+          ))}
+        </div>
+
+        {/* Botões da aba Lotes no topo fixo */}
+        {tab === 'lotes' && !showNovoLote && !editandoLote && isGestor && (
+          <div className="flex flex-col sm:flex-row gap-3 mb-4">
+            <button
+              onClick={() => setShowNovoLote(true)}
+              className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2 bg-[var(--primary)] text-white rounded-lg font-poppins font-semibold text-sm hover:bg-[#1a3009] transition-colors"
+            >
+              + Novo Lote
+            </button>
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={importLoading}
+              className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2 border-2 border-[var(--primary)] text-[var(--primary)] rounded-lg font-poppins font-semibold text-sm hover:bg-[var(--primary)] hover:text-white disabled:opacity-50 transition-colors"
+            >
+              📥 Importar Excel
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx,.xls"
+              onChange={handleFileSelect}
+              className="hidden"
+            />
+          </div>
+        )}
+
+        {/* Botão da aba Piquetes no topo fixo */}
+        {tab === 'piquetes' && !showNovoPiquete && !editandoPiquete && isGestor && (
           <button
-            key={t}
-            onClick={() => {
-              setTab(t)
-              setShowNovoLote(false)
-              setShowNovoPiquete(false)
-              setEditandoLote(null)
-              setEditandoPiquete(null)
-            }}
-            className={`flex-1 py-2 px-2 text-center rounded-lg font-poppins font-semibold text-sm capitalize transition-colors whitespace-nowrap ${
-              tab === t
-                ? 'bg-white text-[var(--primary)] shadow-sm'
-                : 'text-gray-500 hover:text-gray-700'
-            }`}
+            onClick={() => setShowNovoPiquete(true)}
+            className="mb-4 w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2 bg-[var(--primary)] text-white rounded-lg font-poppins font-semibold text-sm hover:bg-[#1a3009] transition-colors"
           >
-            {t === 'lotes' ? '📋 Lotes' : t === 'piquetes' ? '🗺️ Piquetes (Básico)' : '📊 Análise de Pastejo'}
+            + Novo Piquete
           </button>
-        ))}
-      </div>
+        )}
 
-      {/* Aba Lotes */}
-      {tab === 'lotes' && (
-        <div>
-          {!showNovoLote && !editandoLote && isGestor && (
-            <div className="flex flex-col sm:flex-row gap-3 mb-4">
-              <button
-                onClick={() => setShowNovoLote(true)}
-                className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 bg-[var(--primary)] text-white rounded-lg font-poppins font-semibold text-sm hover:bg-[#1a3009] transition-colors"
-              >
-                + Novo Lote
-              </button>
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={importLoading}
-                className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 border-2 border-[var(--primary)] text-[var(--primary)] rounded-lg font-poppins font-semibold text-sm hover:bg-[var(--primary)] hover:text-white disabled:opacity-50 transition-colors"
-              >
-                📥 Importar Excel
-              </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".xlsx,.xls"
-                onChange={handleFileSelect}
-                className="hidden"
+        {/* Filtro de Piquetes da aba Análise de Pastejo no topo fixo */}
+        {tab === 'analise_pastejo' && (
+          <div className="bg-white rounded-xl p-3 shadow-sm border border-gray-100 mb-3 flex flex-wrap items-end gap-3">
+            <div className="flex-1 min-w-[150px]">
+              <label className="block text-xs font-medium text-[var(--text)] mb-1 font-poppins">Piquetes</label>
+              <MultiSelect
+                options={[...piquetes].sort((a, b) => naturalSort(a.nome, b.nome)).map(p => ({ id: p.id, nome: p.nome }))}
+                selectedIds={filtroPiqueteIds}
+                onChange={setFiltroPiqueteIds}
+                placeholder="Todos"
               />
             </div>
-          )}
+            {filtroPiqueteIds.length > 0 && (
+              <div className="w-full sm:w-auto">
+                <button onClick={() => setFiltroPiqueteIds([])} className="w-full sm:w-auto px-4 py-1.5 border-2 border-gray-200 text-gray-600 rounded-lg font-poppins font-semibold text-xs hover:border-gray-300 transition-colors">
+                  Limpar
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ÁREA INTERNA ROLÁVEL */}
+      <div className="flex-1 min-h-0 overflow-y-auto pr-1 pb-4">
+        {/* Aba Lotes */}
+        {tab === 'lotes' && (
+          <div>
 
           {showNovoLote && (
             <LoteForm
@@ -981,14 +1033,6 @@ export default function LotesClient({
       {/* Aba Piquetes (Básico) */}
       {tab === 'piquetes' && (
         <div>
-          {!showNovoPiquete && !editandoPiquete && isGestor && (
-            <button
-              onClick={() => setShowNovoPiquete(true)}
-              className="mb-4 w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 bg-[var(--primary)] text-white rounded-lg font-poppins font-semibold text-sm hover:bg-[#1a3009] transition-colors"
-            >
-              + Novo Piquete
-            </button>
-          )}
 
           {showNovoPiquete && (
             <PiqueteForm
@@ -1073,26 +1117,6 @@ export default function LotesClient({
       {/* Aba Análise de Pastejo */}
       {tab === 'analise_pastejo' && (
         <div>
-          {/* Filtro de Piquetes */}
-          <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 mb-6 flex flex-wrap items-end gap-3">
-            <div className="flex-1 min-w-[150px]">
-              <label className="block text-xs font-medium text-[var(--text)] mb-1 font-poppins">Piquetes</label>
-              <MultiSelect
-                options={[...piquetes].sort((a, b) => naturalSort(a.nome, b.nome)).map(p => ({ id: p.id, nome: p.nome }))}
-                selectedIds={filtroPiqueteIds}
-                onChange={setFiltroPiqueteIds}
-                placeholder="Todos"
-              />
-            </div>
-            {filtroPiqueteIds.length > 0 && (
-              <div className="w-full sm:w-auto">
-                <button onClick={() => setFiltroPiqueteIds([])} className="w-full sm:w-auto px-4 py-2 border-2 border-gray-200 text-gray-600 rounded-lg font-poppins font-semibold text-sm hover:border-gray-300 transition-colors">
-                  Limpar
-                </button>
-              </div>
-            )}
-          </div>
-
           {piquetesFiltrados.length === 0 && !showNovoPiquete ? (
             <div className="text-center py-16 text-gray-400 font-poppins">
               <p className="text-4xl mb-3">🗺️</p>
@@ -1266,6 +1290,7 @@ export default function LotesClient({
           )}
         </div>
       )}
+      </div>
     </div>
   )
 }
