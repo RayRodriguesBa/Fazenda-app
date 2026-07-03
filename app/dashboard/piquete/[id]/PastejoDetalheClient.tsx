@@ -1,5 +1,7 @@
 'use client'
 
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { type Piquete, FORRAGEIRA_LABEL } from '../../lotes/LotesClient'
 
@@ -130,12 +132,50 @@ export default function PastejoDetalheClient({
   piquete,
   movimentacoes,
   lotes,
+  de,
+  ate,
 }: {
   piquete: Piquete
   movimentacoes: MovimentacaoDetalhe[]
   lotes: Lote[]
+  de?: string
+  ate?: string
 }) {
+  const router = useRouter()
+  const [dataInicio, setDataInicio] = useState(de || '')
+  const [dataFim, setDataFim] = useState(ate || '')
+
+  useEffect(() => {
+    setDataInicio(de || '')
+    setDataFim(ate || '')
+  }, [de, ate])
+
   const pastejos = getPastejosDetalhe(movimentacoes, lotes)
+
+  const pastejosFiltrados = pastejos.filter((p) => {
+    if (de) {
+      const atendeDe = (p.data_entrada !== '?' && p.data_entrada >= de) || (p.data_saida && p.data_saida >= de) || !p.data_saida
+      if (!atendeDe) return false
+    }
+    if (ate) {
+      const atendeAte = (p.data_entrada !== '?' && p.data_entrada <= ate) || (p.data_saida && p.data_saida <= ate)
+      if (!atendeAte) return false
+    }
+    return true
+  })
+
+  const handleFiltrar = () => {
+    const params = new URLSearchParams()
+    if (dataInicio) params.set('de', dataInicio)
+    if (dataFim) params.set('ate', dataFim)
+    router.push(`/dashboard/piquete/${piquete.id}?${params.toString()}`)
+  }
+
+  const handleLimpar = () => {
+    setDataInicio('')
+    setDataFim('')
+    router.push(`/dashboard/piquete/${piquete.id}`)
+  }
 
   return (
     <div className="flex flex-col h-[calc(100vh-240px)] lg:h-[calc(100vh-50px)]">
@@ -172,20 +212,60 @@ export default function PastejoDetalheClient({
           </div>
         </div>
 
+        {/* Filtro de Data */}
+        <div className="bg-white rounded-xl p-3 shadow-sm border border-gray-100 mb-3 flex flex-wrap items-end gap-3">
+          <div className="flex-1 min-w-[130px]">
+            <label className="block text-xs font-medium text-[var(--text)] mb-1 font-poppins">A partir de</label>
+            <input
+              type="date"
+              value={dataInicio}
+              onChange={(e) => setDataInicio(e.target.value)}
+              className="w-full px-3 py-1.5 border-2 border-gray-200 rounded-lg font-poppins text-xs focus:outline-none focus:border-[var(--primary)] transition"
+            />
+          </div>
+          <div className="flex-1 min-w-[130px]">
+            <label className="block text-xs font-medium text-[var(--text)] mb-1 font-poppins">Até</label>
+            <input
+              type="date"
+              value={dataFim}
+              onChange={(e) => setDataFim(e.target.value)}
+              className="w-full px-3 py-1.5 border-2 border-gray-200 rounded-lg font-poppins text-xs focus:outline-none focus:border-[var(--primary)] transition"
+            />
+          </div>
+          <div className="flex gap-2 w-full sm:w-auto">
+            <button
+              onClick={handleFiltrar}
+              className="flex-1 sm:flex-none px-4 py-1.5 bg-[var(--primary-light)] text-white rounded-lg font-poppins font-semibold text-xs hover:bg-[var(--primary)] transition-colors"
+            >
+              Filtrar
+            </button>
+            {(de || ate) && (
+              <button
+                onClick={handleLimpar}
+                className="flex-1 sm:flex-none px-4 py-1.5 border-2 border-gray-200 text-gray-600 rounded-lg font-poppins font-semibold text-xs hover:border-gray-300 transition-colors"
+              >
+                Limpar
+              </button>
+            )}
+          </div>
+        </div>
+
         {pastejos.length > 0 && (
-          <p className="text-sm text-gray-500 font-poppins mb-2">{pastejos.length} pastejo(s) registrado(s)</p>
+          <p className="text-sm text-gray-500 font-poppins mb-2">
+            {pastejosFiltrados.length} pastejo(s) registrado(s) {de || ate ? '(filtrado)' : ''}
+          </p>
         )}
       </div>
 
       {/* LISTA DE PASTEJOS — rolável internamente */}
-      {pastejos.length === 0 ? (
+      {pastejosFiltrados.length === 0 ? (
         <div className="text-center py-16 text-gray-400 font-poppins">
           <p className="text-4xl mb-3">🌱</p>
-          <p className="text-base">Nenhum pastejo registrado para este piquete.</p>
+          <p className="text-base">Nenhum pastejo registrado para este piquete {de || ate ? 'no período selecionado' : ''}.</p>
         </div>
       ) : (
         <div className="flex-1 min-h-0 overflow-y-auto space-y-4 pr-1 pb-4">
-          {pastejos.map((p, i) => (
+          {pastejosFiltrados.map((p, i) => (
             <div key={i} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
               {/* Header do pastejo */}
               <div className={`px-4 py-3 border-b flex justify-between items-center ${!p.data_saida ? 'bg-green-50 border-green-100' : 'bg-gray-50 border-gray-100'}`}>

@@ -3,8 +3,15 @@ import { createClient } from '@/app/lib/supabase/server'
 import { cookies } from 'next/headers'
 import PastejoDetalheClient from './PastejoDetalheClient'
 
-export default async function PiqueteDetalhePage({ params }: { params: Promise<{ id: string }> }) {
+export default async function PiqueteDetalhePage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>
+  searchParams: Promise<{ de?: string; ate?: string }>
+}) {
   const { id } = await params
+  const { de, ate } = await searchParams
   const supabase = await createClient()
 
   const { data: { user } } = await supabase.auth.getUser()
@@ -41,6 +48,8 @@ export default async function PiqueteDetalhePage({ params }: { params: Promise<{
       piquete={resPiquete.data}
       movimentacoes={resMovs.data || []}
       lotes={resLotes.data || []}
+      de={de}
+      ate={ate}
     />
   )
 }
