@@ -188,11 +188,13 @@ function ChuvaForm({
 export default function ChuvaClient({
   registros,
   diasSemChuva,
+  mediaMm,
   de,
   ate,
 }: {
   registros: RegistroChuva[]
   diasSemChuva: number
+  mediaMm: number
   de?: string
   ate?: string
 }) {
@@ -285,7 +287,7 @@ export default function ChuvaClient({
       )}
 
       {registros.length > 0 && modo === null && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
             <p className="text-xs text-gray-500 font-poppins uppercase tracking-wide">Dias sem chuva</p>
             <p className="text-2xl font-bold text-[var(--error)] font-poppins mt-1">
@@ -296,6 +298,12 @@ export default function ChuvaClient({
             <p className="text-xs text-gray-500 font-poppins uppercase tracking-wide">Total acumulado</p>
             <p className="text-2xl font-bold text-[var(--primary)] font-poppins mt-1">
               {totalMm.toFixed(1)} <span className="text-sm font-normal">mm</span>
+            </p>
+          </div>
+          <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+            <p className="text-xs text-gray-500 font-poppins uppercase tracking-wide">Média por dia de chuva</p>
+            <p className="text-2xl font-bold text-[var(--primary-light)] font-poppins mt-1">
+              {mediaMm.toFixed(1)} <span className="text-sm font-normal">mm</span>
             </p>
           </div>
           <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">

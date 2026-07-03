@@ -30,7 +30,6 @@ export default async function ChuvaPage({
 
     if (de) query = query.gte('data', de)
     if (ate) query = query.lte('data', ate)
-    else query = query.limit(50) // Só aplica o limite se não houver filtro 'até' para não quebrar buscas maiores
 
     const [res, resUltimaChuva] = await Promise.all([
       query,
@@ -59,6 +58,12 @@ export default async function ChuvaPage({
 
   const lista: RegistroChuva[] = registros ?? []
 
+  // Calcular a média de volume para os registros com chuva
+  const registrosComChuva = lista.filter((r) => r.volume_mm > 0)
+  const mediaMm = registrosComChuva.length > 0
+    ? registrosComChuva.reduce((acc, r) => acc + r.volume_mm, 0) / registrosComChuva.length
+    : 0
+
   return (
     <div>
       <div className="mb-6">
@@ -66,11 +71,11 @@ export default async function ChuvaPage({
           <CloudRain className="inline-block mr-2 w-7 h-7 mb-1" /> Registro de Chuva
         </h1>
         <p className="text-sm text-gray-500 font-poppins mt-1">
-          {!fazendaId ? 'Selecione uma fazenda para continuar.' : `Últimos ${lista.length} registros`}
+          {!fazendaId ? 'Selecione uma fazenda para continuar.' : `${lista.length} registro${lista.length !== 1 ? 's' : ''} encontrado${lista.length !== 1 ? 's' : ''}`}
         </p>
       </div>
 
-      <ChuvaClient registros={lista} diasSemChuva={diasSemChuva} de={de} ate={ate} />
+      <ChuvaClient registros={lista} diasSemChuva={diasSemChuva} mediaMm={mediaMm} de={de} ate={ate} />
     </div>
   )
 }
