@@ -137,10 +137,10 @@ export default function PastejoDetalheClient({
   const pastejos = getPastejosDetalhe(movimentacoes, lotes)
 
   return (
-    <div className="flex flex-col" style={{ height: 'calc(100vh - 180px)' }}>
-      {/* Info do piquete — fixa no topo */}
-      <div className="shrink-0">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-4">
+    <div>
+      {/* Info do piquete — sticky no topo ao scrollar */}
+      <div className="sticky top-28 lg:top-0 z-10 bg-[var(--bg)] pb-3 -mx-4 px-4 pt-1">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
           <div className="flex flex-wrap gap-4 text-sm font-poppins text-gray-600">
             <span>📐 <strong className="text-[var(--text)]">{piquete.area_ha ?? '--'} ha</strong></span>
             {piquete.forrageira && (
@@ -156,18 +156,18 @@ export default function PastejoDetalheClient({
         </div>
 
         {pastejos.length > 0 && (
-          <p className="text-sm text-gray-500 font-poppins mb-3">{pastejos.length} pastejo(s) registrado(s)</p>
+          <p className="text-sm text-gray-500 font-poppins mt-3">{pastejos.length} pastejo(s) registrado(s)</p>
         )}
       </div>
 
-      {/* Lista de pastejos — scrollável */}
+      {/* Lista de pastejos — scroll natural da página */}
       {pastejos.length === 0 ? (
         <div className="text-center py-16 text-gray-400 font-poppins">
           <p className="text-4xl mb-3">🌱</p>
           <p className="text-base">Nenhum pastejo registrado para este piquete.</p>
         </div>
       ) : (
-        <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+        <div className="space-y-4 mt-2">
           {pastejos.map((p, i) => (
             <div key={i} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
               {/* Header do pastejo */}
