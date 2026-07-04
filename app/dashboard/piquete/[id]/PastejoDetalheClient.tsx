@@ -164,14 +164,6 @@ export default function PastejoDetalheClient({
     return true
   })
 
-  const isOcupado = pastejosFiltrados.length > 0 && !pastejosFiltrados[0].data_saida
-  const refDate = ate && new Date(ate + 'T23:59:59').getTime() < new Date().getTime() ? new Date(ate + 'T23:59:59').getTime() : new Date().getTime()
-  const diasDescansoAtual = (!isOcupado && pastejosFiltrados.length > 0 && pastejosFiltrados[0].data_saida) ? Math.max(0, Math.floor((refDate - new Date(pastejosFiltrados[0].data_saida).getTime()) / 86400000)) : 0
-  const diasOcupadoAtual = (isOcupado && pastejosFiltrados[0].data_entrada !== '?') ? Math.max(0, Math.floor((refDate - new Date(pastejosFiltrados[0].data_entrada).getTime()) / 86400000)) : (pastejosFiltrados[0]?.dias_ocupado || 0)
-
-  const totalDescansoAcumulado = pastejosFiltrados.reduce((acc, p) => acc + (p.dias_descanso_previo || 0), 0) + (!isOcupado ? diasDescansoAtual : 0)
-  const totalOcupacaoAcumulada = pastejosFiltrados.reduce((acc, p) => acc + (p.dias_ocupado || 0), 0) + (isOcupado ? diasOcupadoAtual : 0)
-
   const handleFiltrar = () => {
     const params = new URLSearchParams()
     if (dataInicio) params.set('de', dataInicio)
@@ -259,21 +251,9 @@ export default function PastejoDetalheClient({
         </div>
 
         {pastejos.length > 0 && (
-          <div className="bg-white rounded-xl p-3 shadow-sm border border-gray-100 mb-3 flex flex-wrap items-center justify-between gap-3">
-            <p className="text-sm text-gray-500 font-poppins">
-              {pastejosFiltrados.length} pastejo(s) registrado(s) {de || ate ? '(filtrado)' : ''}
-            </p>
-            <div className="flex gap-4 text-xs font-poppins">
-              <div className="bg-amber-50 border border-amber-100 px-3 py-1 rounded-lg text-center">
-                <span className="text-[10px] text-amber-700 font-bold uppercase block">Descanso Total</span>
-                <span className="text-sm font-bold text-amber-600">{totalDescansoAcumulado} d</span>
-              </div>
-              <div className="bg-green-50 border border-green-100 px-3 py-1 rounded-lg text-center">
-                <span className="text-[10px] text-green-700 font-bold uppercase block">Ocupação Total</span>
-                <span className="text-sm font-bold text-green-600">{totalOcupacaoAcumulada} d</span>
-              </div>
-            </div>
-          </div>
+          <p className="text-sm text-gray-500 font-poppins mb-2">
+            {pastejosFiltrados.length} pastejo(s) registrado(s) {de || ate ? '(filtrado)' : ''}
+          </p>
         )}
       </div>
 
