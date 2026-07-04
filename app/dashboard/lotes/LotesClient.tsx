@@ -443,6 +443,8 @@ export default function LotesClient({
 
   // Filtros Piquetes
   const [filtroPiqueteIds, setFiltroPiqueteIds] = useState<string[]>([])
+  const [dataInicio, setDataInicio] = useState('')
+  const [dataFim, setDataFim] = useState('')
 
   const formatarData = (dataISO: string) => {
     if (!dataISO || dataISO === '?') return '?'
@@ -852,7 +854,7 @@ export default function LotesClient({
           </button>
         )}
 
-        {/* Filtro de Piquetes da aba Análise de Pastejo no topo fixo */}
+        {/* Filtro de Piquetes e Data da aba Análise de Pastejo no topo fixo */}
         {tab === 'analise_pastejo' && (
           <div className="bg-white rounded-xl p-3 shadow-sm border border-gray-100 mb-3 flex flex-wrap items-end gap-3">
             <div className="flex-1 min-w-[150px]">
@@ -864,9 +866,34 @@ export default function LotesClient({
                 placeholder="Todos"
               />
             </div>
-            {filtroPiqueteIds.length > 0 && (
+            <div className="flex-1 min-w-[130px]">
+              <label className="block text-xs font-medium text-[var(--text)] mb-1 font-poppins">A partir de</label>
+              <input
+                type="date"
+                value={dataInicio}
+                onChange={(e) => setDataInicio(e.target.value)}
+                className="w-full px-3 py-1.5 border-2 border-gray-200 rounded-lg font-poppins text-xs focus:outline-none focus:border-[var(--primary)] transition"
+              />
+            </div>
+            <div className="flex-1 min-w-[130px]">
+              <label className="block text-xs font-medium text-[var(--text)] mb-1 font-poppins">Até</label>
+              <input
+                type="date"
+                value={dataFim}
+                onChange={(e) => setDataFim(e.target.value)}
+                className="w-full px-3 py-1.5 border-2 border-gray-200 rounded-lg font-poppins text-xs focus:outline-none focus:border-[var(--primary)] transition"
+              />
+            </div>
+            {(filtroPiqueteIds.length > 0 || dataInicio || dataFim) && (
               <div className="w-full sm:w-auto">
-                <button onClick={() => setFiltroPiqueteIds([])} className="w-full sm:w-auto px-4 py-1.5 border-2 border-gray-200 text-gray-600 rounded-lg font-poppins font-semibold text-xs hover:border-gray-300 transition-colors">
+                <button
+                  onClick={() => {
+                    setFiltroPiqueteIds([])
+                    setDataInicio('')
+                    setDataFim('')
+                  }}
+                  className="w-full sm:w-auto px-4 py-1.5 border-2 border-gray-200 text-gray-600 rounded-lg font-poppins font-semibold text-xs hover:border-gray-300 transition-colors"
+                >
                   Limpar
                 </button>
               </div>
@@ -1164,6 +1191,27 @@ export default function LotesClient({
                 const diasOcupado = (isOcupado && lastPastejo?.data_entrada !== '?') ? Math.max(0, Math.floor((new Date().getTime() - new Date(lastPastejo.data_entrada).getTime()) / 86400000)) : (lastPastejo?.dias_ocupado || 0)
                 const ultimoPastejoCompleto = allPastejos.find(p => !!p.data_saida) ?? null
 
+                const pastejosNoIntervalo = allPastejos.filter(p => {
+                  if (dataInicio) {
+                    const atendeDe = (p.data_entrada !== '?' && p.data_entrada >= dataInicio) || (p.data_saida && p.data_saida >= dataInicio) || !p.data_saida
+                    if (!atendeDe) return false
+                  }
+                  if (dataFim) {
+                    const atendeAte = (p.data_entrada !== '?' && p.data_entrada <= dataFim) || (p.data_saida && p.data_saida <= dataFim)
+                    if (!atendeAte) return false
+                  }
+                  return true
+                })
+
+                const refDate = dataFim && new Date(dataFim + 'T23:59:59').getTime() < new Date().getTime()
+                  ? new Date(dataFim + 'T23:59:59').getTime()
+                  : new Date().getTime()
+                const isOcupadoNoIntervalo = pastejosNoIntervalo.length > 0 && !pastejosNoIntervalo[0].data_saida
+                const diasDescansoAtualNoIntervalo = (!isOcupadoNoIntervalo && pastejosNoIntervalo.length > 0 && pastejosNoIntervalo[0].data_saida)
+                  ? Math.max(0, Math.floor((refDate - new Date(pastejosNoIntervalo[0].data_saida).getTime()) / 86400000))
+                  : 0
+                const descansoTotalNoIntervalo = pastejosNoIntervalo.reduce((acc, p) => acc + (p.dias_descanso_previo || 0), 0) + (!isOcupadoNoIntervalo ? diasDescansoAtualNoIntervalo : 0)
+
                 return (
                   <div
                     key={piquete.id}
@@ -1202,6 +1250,16 @@ export default function LotesClient({
                     </div>
 
                     <div className="p-4 flex-1 flex flex-col gap-4">
+                      {/* Descanso Total no Período / Acumulado */}
+                      <div className="bg-amber-50 border border-amber-100 rounded-lg p-2.5 flex items-center justify-between">
+                        <span className="text-xs font-semibold text-amber-800 font-poppins">
+                          {dataInicio || dataFim ? '🌿 Descanso Total no Período:' : '🌿 Descanso Total Acumulado:'}
+                        </span>
+                        <span className="text-sm font-bold text-amber-600 font-poppins">
+                          {descansoTotalNoIntervalo} dias
+                        </span>
+                      </div>
+
                       {/* Pastejo Atual */}
                       {isOcupado && lastPastejo && (
                         <div>
