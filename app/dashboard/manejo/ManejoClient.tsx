@@ -8,29 +8,8 @@ export type Lote = {
   id: string
   lote_key: string
   nome: string
-  num_animais?: number | null
-  peso_medio_kg?: number | null
 }
 export type Produto = { id: string; nome: string; categoria: string }
-
-/**
- * Uma versão da tabela `lote` (SCD2) — o que antes era um registro em
- * `manejo_lancamentos`. É histórico imutável: só leitura.
- */
-export type VersaoLote = {
-  id: string
-  lote_key: string
-  lote_nome: string
-  /** `valido_de`: data em que esta versão passou a valer */
-  data: string
-  valido_ate: string | null
-  num_animais: number | null
-  peso_medio_kg: number | null
-  isInicial: boolean
-  isVigente: boolean
-  deltaAnimais: number | null
-  deltaPeso: number | null
-}
 
 export type RegistroAtividade = {
   id: string
@@ -53,8 +32,6 @@ const TIPOS_ATIVIDADE = [
 type FormPayload = {
   lote_id: string
   data: string
-  num_animais: number | null
-  peso_medio_kg: number | null
   atividades: {
     tipo: string
     produtos_ids: string[]
@@ -65,7 +42,6 @@ type Filtros = {
   de?: string
   ate?: string
   lote?: string
-  tipo?: string
 }
 
 type ModoFormAtividade = { tipo: 'criar' } | { tipo: 'editar'; registro: RegistroAtividade }
@@ -80,123 +56,6 @@ const EMOJI_ATIVIDADE: Record<string, string> = {
   'Vermifugo': '💊',
   'Pour-On': '💧',
   'Vacina': '💉',
-}
-
-// ─── Formulário de Pesagem (abre uma nova versão do lote) ─────
-//
-// SCD2: cada pesagem cria uma versão nova de `lote`; versões são histórico
-// imutável, por isso este formulário só cria — não edita nem exclui.
-function PesagemForm({
-  lotes,
-  onSalvar,
-  onCancelar,
-}: {
-  lotes: Lote[]
-  onSalvar: (dados: { lote_id: string; data: string; num_animais: number | null; peso_medio_kg: number | null }) => Promise<void>
-  onCancelar: () => void
-}) {
-  const hoje = new Date().toISOString().split('T')[0]
-
-  const [loteKey, setLoteKey] = useState('')
-  const [data, setData] = useState(hoje)
-  const [numAnimais, setNumAnimais] = useState('')
-  const [pesoMedio, setPesoMedio] = useState('')
-
-  const [loading, setLoading] = useState(false)
-  const [erro, setErro] = useState('')
-
-  const loteSelecionado = lotes.find((l) => l.lote_key === loteKey) ?? null
-  const informouAlgo = numAnimais !== '' || pesoMedio !== ''
-
-  const isValido =
-    data !== '' &&
-    loteKey !== '' &&
-    informouAlgo &&
-    (!numAnimais || Number(numAnimais) >= 0) &&
-    (!pesoMedio || Number(pesoMedio) > 0)
-
-  const handleLoteChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const nova = e.target.value
-    setLoteKey(nova)
-    const lote = lotes.find((l) => l.lote_key === nova)
-    setNumAnimais(lote?.num_animais?.toString() ?? '')
-    setPesoMedio(lote?.peso_medio_kg?.toString() ?? '')
-  }
-
-  const handleSalvar = async () => {
-    if (!isValido) return
-    setLoading(true)
-    setErro('')
-    try {
-      await onSalvar({
-        lote_id: loteKey,
-        data,
-        num_animais: numAnimais ? Number(numAnimais) : null,
-        peso_medio_kg: pesoMedio ? Number(pesoMedio) : null,
-      })
-    } catch (e: unknown) {
-      setErro(e instanceof Error ? e.message : 'Erro ao salvar')
-    } finally { setLoading(false) }
-  }
-
-  return (
-    <div className="bg-white border-2 border-[var(--primary)] rounded-xl p-5 shadow-sm mb-6 max-w-3xl">
-      <h2 className="text-base font-semibold text-[var(--primary)] font-poppins mb-1">
-        Nova Atualização de Lote
-      </h2>
-      <p className="text-xs text-gray-500 font-poppins mb-4">
-        Registra uma nova versão do lote a partir desta data. O estado anterior é preservado no histórico.
-      </p>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-[var(--text)] mb-1 font-poppins">Data <span className="text-[var(--error)]">*</span></label>
-          <input type="date" value={data} onChange={(e) => setData(e.target.value)} max={hoje} disabled={loading}
-            className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg font-poppins text-sm focus:outline-none focus:border-[var(--primary)] disabled:bg-gray-100 transition" />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-[var(--text)] mb-1 font-poppins">Lote <span className="text-[var(--error)]">*</span></label>
-          <select value={loteKey} onChange={handleLoteChange} disabled={loading}
-            className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg font-poppins text-sm focus:outline-none focus:border-[var(--primary)] disabled:bg-gray-100 transition bg-white">
-            <option value="">Selecione...</option>
-            {lotes.map((l) => <option key={l.lote_key} value={l.lote_key}>{l.nome}</option>)}
-          </select>
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-[var(--text)] mb-1 font-poppins">
-            Nº de Animais
-            {loteSelecionado?.num_animais != null && (
-              <span className="ml-1 text-xs text-gray-400 font-normal">(atual: {loteSelecionado.num_animais})</span>
-            )}
-          </label>
-          <input type="number" value={numAnimais} onChange={(e) => setNumAnimais(e.target.value)} placeholder="Ex: 50" min="0" disabled={loading}
-            className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg font-poppins text-sm focus:outline-none focus:border-[var(--primary)] disabled:bg-gray-100 transition" />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-[var(--text)] mb-1 font-poppins">
-            Peso Médio (kg)
-            {loteSelecionado?.peso_medio_kg != null && (
-              <span className="ml-1 text-xs text-gray-400 font-normal">(atual: {loteSelecionado.peso_medio_kg})</span>
-            )}
-          </label>
-          <input type="number" value={pesoMedio} onChange={(e) => setPesoMedio(e.target.value)} placeholder="Ex: 380" min="0.1" step="0.1" disabled={loading}
-            className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg font-poppins text-sm focus:outline-none focus:border-[var(--primary)] disabled:bg-gray-100 transition" />
-        </div>
-      </div>
-
-      {erro && <div className="mt-3 p-3 bg-red-50 border border-[var(--error)] rounded-lg text-[var(--error)] text-sm font-poppins">{erro}</div>}
-
-      <div className="mt-4 flex gap-3">
-        <button onClick={handleSalvar} disabled={!isValido || loading}
-          className="flex-1 sm:flex-none px-6 py-2.5 bg-[var(--primary)] text-white rounded-lg font-poppins font-semibold text-sm hover:bg-[#1a3009] disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed transition-colors">
-          {loading ? 'Salvando...' : 'Salvar Registro'}
-        </button>
-        <button onClick={onCancelar} disabled={loading}
-          className="flex-1 sm:flex-none px-6 py-2.5 border-2 border-gray-300 text-gray-600 rounded-lg font-poppins font-semibold text-sm hover:border-gray-400 disabled:opacity-50 transition-colors">
-          Cancelar
-        </button>
-      </div>
-    </div>
-  )
 }
 
 // ─── Formulário de Atividade ────────────────────────
@@ -224,7 +83,7 @@ function AtividadeForm({
   const [data, setData] = useState(inicial?.data ?? hoje)
   const [tipo, setTipo] = useState(inicial?.tipo ?? '')
   const [produtosIds, setProdutosIds] = useState<string[]>([])
-  
+
   const [loading, setLoading] = useState(false)
   const [excluindo, setExcluindo] = useState(false)
   const [confirmarExclusao, setConfirmarExclusao] = useState(false)
@@ -350,32 +209,28 @@ function AtividadeForm({
 export default function ManejoClient({
   lotes,
   produtosDisponiveis,
-  versoesLote,
   atividadesRegistradas,
   filtros
 }: {
   lotes: Lote[]
   produtosDisponiveis: Produto[]
-  versoesLote: VersaoLote[]
   atividadesRegistradas: RegistroAtividade[]
   filtros: Filtros
 }) {
   const router = useRouter()
-  const [modoCriar, setModoCriar] = useState<'lancamento' | 'atividade' | null>(null)
+  const [criando, setCriando] = useState(false)
   const [modoEditar, setModoEditar] = useState<ModoFormAtividade | null>(null)
 
   // Filtros locais
   const [dataInicio, setDataInicio] = useState(filtros.de || '')
   const [dataFim, setDataFim] = useState(filtros.ate || '')
   const [filtroLote, setFiltroLote] = useState(filtros.lote || '')
-  const [filtroTipo, setFiltroTipo] = useState(filtros.tipo || 'todos')
 
   useEffect(() => {
     setDataInicio(filtros.de || '')
     setDataFim(filtros.ate || '')
     setFiltroLote(filtros.lote || '')
-    setFiltroTipo(filtros.tipo || 'todos')
-  }, [filtros.de, filtros.ate, filtros.lote, filtros.tipo])
+  }, [filtros.de, filtros.ate, filtros.lote])
 
   const [sucesso, setSucesso] = useState('')
 
@@ -384,36 +239,20 @@ export default function ManejoClient({
     setTimeout(() => setSucesso(''), 3000)
   }
 
-  // ── Handlers de criação ──
-  const handleCriarPesagem = async (dados: { lote_id: string; data: string; num_animais: number | null; peso_medio_kg: number | null }) => {
-    const payload: FormPayload = {
-      lote_id: dados.lote_id, data: dados.data,
-      num_animais: dados.num_animais, peso_medio_kg: dados.peso_medio_kg,
-      atividades: []
-    }
-    const res = await fetch('/api/manejo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
-    const json = await res.json()
-    if (!res.ok) throw new Error(json.error)
-    mostrarSucesso('Nova versão do lote registrada com sucesso!')
-    setModoCriar(null)
-    router.refresh()
-  }
-
+  // ── Handlers ──
   const handleCriarAtividade = async (dados: { lote_id: string; data: string; tipo: string; produtos_ids: string[] }) => {
     const payload: FormPayload = {
       lote_id: dados.lote_id, data: dados.data,
-      num_animais: null, peso_medio_kg: null,
       atividades: [{ tipo: dados.tipo, produtos_ids: dados.produtos_ids }]
     }
     const res = await fetch('/api/manejo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
     const json = await res.json()
     if (!res.ok) throw new Error(json.error)
     mostrarSucesso('Atividade registrada com sucesso!')
-    setModoCriar(null)
+    setCriando(false)
     router.refresh()
   }
 
-  // ── Handlers de edição ──
   const handleEditarAtividade = async (id: string, dados: { lote_id: string; data: string; tipo: string; produtos_ids: string[] }) => {
     const res = await fetch(`/api/manejo/atividades/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dados) })
     const json = await res.json()
@@ -438,17 +277,16 @@ export default function ManejoClient({
     if (dataInicio) params.set('de', dataInicio)
     if (dataFim) params.set('ate', dataFim)
     if (filtroLote) params.set('lote', filtroLote)
-    if (filtroTipo && filtroTipo !== 'todos') params.set('tipo', filtroTipo)
     router.push(`/dashboard/manejo?${params.toString()}`)
   }
 
   const handleLimparFiltros = () => {
-    setDataInicio(''); setDataFim(''); setFiltroLote(''); setFiltroTipo('todos')
+    setDataInicio(''); setDataFim(''); setFiltroLote('')
     router.push('/dashboard/manejo')
   }
 
-  const temFiltroAtivo = !!(filtros.de || filtros.ate || filtros.lote || filtros.tipo)
-  const temRegistros = versoesLote.length > 0 || atividadesRegistradas.length > 0
+  const temFiltroAtivo = !!(filtros.de || filtros.ate || filtros.lote)
+  const temRegistros = atividadesRegistradas.length > 0
 
   return (
     <div>
@@ -458,45 +296,30 @@ export default function ManejoClient({
         </div>
       )}
 
-      {/* Botões para abrir formulários de criação */}
-      {modoCriar === null && modoEditar === null && (
+      {/* Botão para abrir o formulário de criação */}
+      {!criando && modoEditar === null && (
         <div className="flex flex-wrap gap-3 mb-6">
           <button
-            onClick={() => setModoCriar('atividade')}
+            onClick={() => setCriando(true)}
             className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-2.5 bg-[var(--primary)] text-white rounded-lg font-poppins font-semibold hover:bg-[#1a3009] transition-colors"
           >
             + Atividade
           </button>
-          <button
-            onClick={() => setModoCriar('lancamento')}
-            className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-2.5 bg-white border-2 border-[var(--primary)] text-[var(--primary)] rounded-lg font-poppins font-semibold hover:bg-gray-50 transition-colors"
-          >
-            + Atualizações do Lote
-          </button>
         </div>
       )}
 
-      {/* Formulários de criação */}
-      {modoCriar === 'lancamento' && (
-        <PesagemForm
-          lotes={lotes}
-          onSalvar={handleCriarPesagem}
-          onCancelar={() => setModoCriar(null)}
-        />
-      )}
-
-      {modoCriar === 'atividade' && (
+      {criando && (
         <AtividadeForm
           modo={{ tipo: 'criar' }}
           lotes={lotes}
           produtosDisponiveis={produtosDisponiveis}
           onSalvar={handleCriarAtividade}
-          onCancelar={() => setModoCriar(null)}
+          onCancelar={() => setCriando(false)}
         />
       )}
 
       {/* Filtros */}
-      {modoCriar === null && modoEditar === null && (temRegistros || temFiltroAtivo) && (
+      {!criando && modoEditar === null && (temRegistros || temFiltroAtivo) && (
         <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 mb-6">
           <div className="flex flex-wrap items-end gap-3">
             <div className="flex-1 min-w-[120px]">
@@ -517,15 +340,6 @@ export default function ManejoClient({
                 {lotes.map((l) => <option key={l.lote_key} value={l.lote_key}>{l.nome}</option>)}
               </select>
             </div>
-            <div className="flex-1 min-w-[140px]">
-              <label className="block text-xs font-medium text-[var(--text)] mb-1 font-poppins">Tipo</label>
-              <select value={filtroTipo} onChange={(e) => setFiltroTipo(e.target.value)}
-                className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg font-poppins text-sm focus:outline-none focus:border-[var(--primary)] transition bg-white">
-                <option value="todos">Todos</option>
-                <option value="lancamentos">Atualizações de Lote</option>
-                <option value="atividades">Atividades</option>
-              </select>
-            </div>
             <div className="flex gap-2 w-full sm:w-auto">
               <button onClick={handleFiltrar}
                 className="flex-1 sm:flex-none px-4 py-2 bg-[var(--primary-light)] text-white rounded-lg font-poppins font-semibold text-sm hover:bg-[var(--primary)] transition-colors">
@@ -542,116 +356,56 @@ export default function ManejoClient({
         </div>
       )}
 
-      {/* Cards de registros */}
-      {modoCriar === null && temRegistros && (
-        <div className="space-y-6">
-          {/* Versões do lote (pesagens e contagens) — histórico imutável */}
-          {versoesLote.length > 0 && (
-            <div>
-              <h2 className="text-base font-semibold text-[var(--text)] font-poppins mb-3 flex items-center gap-2">
-                ⚖️ Atualizações de Lote
-                <span className="text-xs font-normal text-gray-400">({versoesLote.length})</span>
-              </h2>
-              <div className="space-y-2">
-                {versoesLote.map((v) => (
-                  <div
-                    key={v.id}
-                    className="bg-white rounded-xl px-4 py-3 shadow-sm border border-gray-100 flex items-center justify-between gap-4"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-sm font-semibold text-[var(--text)] font-poppins">{v.lote_nome}</p>
-                        {v.isInicial && (
-                          <span className="text-[10px] font-poppins bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">
-                            Cadastro inicial
-                          </span>
-                        )}
-                        {v.isVigente && (
-                          <span className="text-[10px] font-poppins bg-green-50 text-green-700 border border-green-200 px-1.5 py-0.5 rounded-full">
-                            Vigente
-                          </span>
-                        )}
+      {/* Atividades Realizadas */}
+      {!criando && temRegistros && (
+        <div>
+          <h2 className="text-base font-semibold text-[var(--text)] font-poppins mb-3 flex items-center gap-2">
+            🩺 Atividades Realizadas
+            <span className="text-xs font-normal text-gray-400">({atividadesRegistradas.length})</span>
+          </h2>
+          <div className="space-y-2">
+            {atividadesRegistradas.map((a) => {
+              const isEditando = modoEditar?.tipo === 'editar' && modoEditar.registro.id === a.id
+              return (
+                <div key={a.id}>
+                  {isEditando ? (
+                    <AtividadeForm
+                      modo={{ tipo: 'editar', registro: a }}
+                      lotes={lotes}
+                      produtosDisponiveis={produtosDisponiveis}
+                      onSalvar={(dados) => handleEditarAtividade(a.id, dados)}
+                      onExcluir={() => handleExcluirAtividade(a.id)}
+                      onCancelar={() => setModoEditar(null)}
+                    />
+                  ) : (
+                    <button
+                      onClick={() => setModoEditar({ tipo: 'editar', registro: a })}
+                      className="w-full text-left bg-white rounded-xl px-4 py-3 shadow-sm border border-gray-100 hover:border-[var(--primary)] hover:shadow-md transition-all duration-200 flex items-center justify-between gap-4"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-[var(--text)] font-poppins">{a.lote?.nome || 'Lote'}</p>
+                        <p className="text-xs text-gray-500 font-poppins mt-0.5">📅 {formatarData(a.data)}</p>
                       </div>
-                      <p className="text-xs text-gray-500 font-poppins mt-0.5">
-                        📅 {formatarData(v.data)}
-                        {v.valido_ate && ` → ${formatarData(v.valido_ate)}`}
-                        {v.num_animais != null && ` · ${v.num_animais} animais`}
-                        {v.deltaAnimais != null && v.deltaAnimais !== 0 && (
-                          <span className={v.deltaAnimais > 0 ? 'text-green-600' : 'text-[var(--error)]'}>
-                            {' '}({v.deltaAnimais > 0 ? '+' : ''}{v.deltaAnimais})
-                          </span>
-                        )}
-                      </p>
-                    </div>
-                    {v.peso_medio_kg != null && (
-                      <div className="text-right shrink-0">
-                        <span className="text-lg font-bold text-[var(--accent)] font-poppins">{Number(v.peso_medio_kg).toFixed(1)}</span>
-                        <span className="text-xs text-gray-500 font-poppins ml-1">kg/cab</span>
-                        {v.deltaPeso != null && v.deltaPeso !== 0 && (
-                          <p className={`text-[11px] font-poppins font-semibold ${v.deltaPeso > 0 ? 'text-green-600' : 'text-[var(--error)]'}`}>
-                            {v.deltaPeso > 0 ? '+' : ''}{v.deltaPeso} kg
-                          </p>
-                        )}
+                      <div className="shrink-0">
+                        <span className="inline-flex items-center gap-1 px-3 py-1 bg-green-50 text-green-700 rounded-full text-xs font-semibold font-poppins border border-green-200">
+                          {EMOJI_ATIVIDADE[a.tipo] || '📋'} {a.tipo}
+                        </span>
                       </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Atividades Realizadas */}
-          {atividadesRegistradas.length > 0 && (
-            <div>
-              <h2 className="text-base font-semibold text-[var(--text)] font-poppins mb-3 flex items-center gap-2">
-                🩺 Atividades Realizadas
-                <span className="text-xs font-normal text-gray-400">({atividadesRegistradas.length})</span>
-              </h2>
-              <div className="space-y-2">
-                {atividadesRegistradas.map((a) => {
-                  const isEditando = modoEditar?.tipo === 'editar' && modoEditar.registro.id === a.id
-                  return (
-                    <div key={a.id}>
-                      {isEditando ? (
-                        <AtividadeForm
-                          modo={{ tipo: 'editar', registro: a }}
-                          lotes={lotes}
-                          produtosDisponiveis={produtosDisponiveis}
-                          onSalvar={(dados) => handleEditarAtividade(a.id, dados)}
-                          onExcluir={() => handleExcluirAtividade(a.id)}
-                          onCancelar={() => setModoEditar(null)}
-                        />
-                      ) : (
-                        <button
-                          onClick={() => setModoEditar({ tipo: 'editar', registro: a })}
-                          className="w-full text-left bg-white rounded-xl px-4 py-3 shadow-sm border border-gray-100 hover:border-[var(--primary)] hover:shadow-md transition-all duration-200 flex items-center justify-between gap-4"
-                        >
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-[var(--text)] font-poppins">{a.lote?.nome || 'Lote'}</p>
-                            <p className="text-xs text-gray-500 font-poppins mt-0.5">📅 {formatarData(a.data)}</p>
-                          </div>
-                          <div className="shrink-0">
-                            <span className="inline-flex items-center gap-1 px-3 py-1 bg-green-50 text-green-700 rounded-full text-xs font-semibold font-poppins border border-green-200">
-                              {EMOJI_ATIVIDADE[a.tipo] || '📋'} {a.tipo}
-                            </span>
-                          </div>
-                        </button>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )}
+                    </button>
+                  )}
+                </div>
+              )
+            })}
+          </div>
         </div>
       )}
 
       {/* Estado vazio */}
-      {modoCriar === null && !temRegistros && (
+      {!criando && !temRegistros && (
         <div className="text-center py-16 text-gray-400 font-poppins">
           <p className="text-4xl mb-3">🐄</p>
-          <p className="text-base">{temFiltroAtivo ? 'Nenhum registro encontrado para os filtros selecionados.' : 'Nenhum registro de manejo encontrado.'}</p>
-          <p className="text-sm mt-1">{temFiltroAtivo ? 'Tente alterar os filtros ou limpar a busca.' : 'Clique em uma das opções acima para começar.'}</p>
+          <p className="text-base">{temFiltroAtivo ? 'Nenhuma atividade encontrada para os filtros selecionados.' : 'Nenhuma atividade de manejo registrada.'}</p>
+          <p className="text-sm mt-1">{temFiltroAtivo ? 'Tente alterar os filtros ou limpar a busca.' : 'Clique em "+ Atividade" para começar.'}</p>
         </div>
       )}
     </div>

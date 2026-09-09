@@ -70,10 +70,12 @@ function naturalSort(a: string, b: string): number {
 function LoteForm({
   inicial,
   onSalvar,
+  onExcluir,
   onCancelar,
 }: {
   inicial?: Lote
   onSalvar: (dados: Record<string, unknown>) => Promise<void>
+  onExcluir?: () => Promise<void>
   onCancelar: () => void
 }) {
   const [campos, setCampos] = useState({
@@ -84,6 +86,8 @@ function LoteForm({
     ativo: inicial?.ativo ?? true,
   })
   const [loading, setLoading] = useState(false)
+  const [excluindo, setExcluindo] = useState(false)
+  const [confirmarExclusao, setConfirmarExclusao] = useState(false)
   const [erro, setErro] = useState('')
 
   const isValido = campos.nome.trim() !== ''
@@ -104,6 +108,20 @@ function LoteForm({
       setErro(e instanceof Error ? e.message : 'Erro ao salvar. Tente novamente.')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleExcluir = async () => {
+    if (!onExcluir) return
+    setExcluindo(true)
+    setErro('')
+    try {
+      await onExcluir()
+    } catch (e: unknown) {
+      setErro(e instanceof Error ? e.message : 'Erro ao excluir. Tente novamente.')
+      setConfirmarExclusao(false)
+    } finally {
+      setExcluindo(false)
     }
   }
 
@@ -202,21 +220,59 @@ function LoteForm({
         </div>
       )}
 
-      <div className="mt-4 flex gap-3">
-        <button
-          onClick={handleSalvar}
-          disabled={!isValido || loading}
-          className="flex-1 sm:flex-none px-6 py-2.5 bg-[var(--primary)] text-white rounded-lg font-poppins font-semibold text-sm hover:bg-[#1a3009] disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed transition-colors"
-        >
-          {loading ? 'Salvando...' : 'Salvar'}
-        </button>
-        <button
-          onClick={onCancelar}
-          disabled={loading}
-          className="flex-1 sm:flex-none px-6 py-2.5 border-2 border-gray-300 text-gray-600 rounded-lg font-poppins font-semibold text-sm hover:border-gray-400 disabled:opacity-50 transition-colors"
-        >
-          Cancelar
-        </button>
+      <div className="mt-4 flex flex-col gap-3">
+        <div className="flex gap-3">
+          <button
+            onClick={handleSalvar}
+            disabled={!isValido || loading || excluindo}
+            className="flex-1 sm:flex-none px-6 py-2.5 bg-[var(--primary)] text-white rounded-lg font-poppins font-semibold text-sm hover:bg-[#1a3009] disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed transition-colors"
+          >
+            {loading ? 'Salvando...' : 'Salvar'}
+          </button>
+          <button
+            onClick={onCancelar}
+            disabled={loading || excluindo}
+            className="flex-1 sm:flex-none px-6 py-2.5 border-2 border-gray-300 text-gray-600 rounded-lg font-poppins font-semibold text-sm hover:border-gray-400 disabled:opacity-50 transition-colors"
+          >
+            Cancelar
+          </button>
+        </div>
+
+        {inicial && onExcluir && (
+          <div className="border-t border-gray-100 pt-3">
+            {!confirmarExclusao ? (
+              <button
+                onClick={() => setConfirmarExclusao(true)}
+                disabled={loading || excluindo}
+                className="text-sm text-[var(--error)] font-poppins hover:underline disabled:opacity-50"
+              >
+                Excluir lote
+              </button>
+            ) : (
+              <div className="flex items-center gap-3 flex-wrap">
+                <p className="text-sm text-[var(--error)] font-poppins font-medium">
+                  Excluir permanentemente este lote e todo o seu histórico?
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleExcluir}
+                    disabled={excluindo}
+                    className="px-4 py-1.5 bg-[var(--error)] text-white rounded-lg font-poppins font-semibold text-sm hover:bg-red-700 disabled:opacity-50 transition-colors"
+                  >
+                    {excluindo ? 'Excluindo...' : 'Sim, excluir'}
+                  </button>
+                  <button
+                    onClick={() => setConfirmarExclusao(false)}
+                    disabled={excluindo}
+                    className="px-4 py-1.5 border-2 border-gray-300 text-gray-600 rounded-lg font-poppins font-semibold text-sm disabled:opacity-50 transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -662,6 +718,18 @@ export default function LotesClient({
     router.refresh()
   }
 
+  const handleExcluirLote = async () => {
+    if (!editandoLote) return
+    const res = await fetch(`/api/lotes/${editandoLote.id}`, { method: 'DELETE' })
+    if (!res.ok) {
+      const json = await res.json()
+      throw new Error(json.error)
+    }
+    setEditandoLote(null)
+    mostrarSucesso('Lote excluído com sucesso!')
+    router.refresh()
+  }
+
   const handleCriarPiquete = async (dados: Record<string, unknown>) => {
     const res = await fetch('/api/piquetes', {
       method: 'POST',
@@ -1028,6 +1096,7 @@ export default function LotesClient({
                     <LoteForm
                       inicial={lote}
                       onSalvar={handleEditarLote}
+                      onExcluir={handleExcluirLote}
                       onCancelar={() => setEditandoLote(null)}
                     />
                   ) : (
