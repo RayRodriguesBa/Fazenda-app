@@ -1,4 +1,5 @@
 import { createClient } from '@/app/lib/supabase/server'
+import { hojeISO } from '@/app/lib/lote'
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 
@@ -30,7 +31,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
     }
 
+    // SCD2: a versão 1 do lote é sua própria chave de negócio (lote_key = id).
+    const id = crypto.randomUUID()
+
     const { error } = await supabase.from('lote').insert({
+      id,
+      lote_key: id,
+      valido_de: hojeISO(),
+      valido_ate: null,
       nome: nome.trim(),
       descricao: descricao?.trim() || null,
       num_animais: num_animais ? Number(num_animais) : null,

@@ -1,83 +1,31 @@
-import { createClient } from '@/app/lib/supabase/server'
-import { NextRequest, NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
+import { NextResponse } from 'next/server'
 
-async function getAuthAndFazenda() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Não autenticado', status: 401 }
-
-  const cookieStore = await cookies()
-  const fazenda_id = cookieStore.get('fazenda_id')?.value
-  if (!fazenda_id) return { error: 'Fazenda não selecionada', status: 400 }
-
-  return { supabase, user, fazenda_id }
+/**
+ * ROTA DESATIVADA — pode ser apagada com segurança.
+ *
+ * A tabela `manejo_lancamentos` foi removida na migração para SCD Tipo 2
+ * (`migrations/20260908_lote_scd2.sql`). Pesagens e contagens deixaram de ser
+ * registros próprios e passaram a ser VERSÕES da tabela `lote`, criadas por
+ * `nova_versao_lote` a partir de `POST /api/manejo`.
+ *
+ * Versões são um histórico imutável: editar ou excluir uma delas quebraria os
+ * fatos que a referenciam (`cocho`, `movimentacao_gado`, `manejo_atividade`) e a
+ * continuidade dos períodos `[valido_de, valido_ate)`. Por isso não há
+ * substituto para PUT/DELETE aqui.
+ *
+ * O arquivo só continua no repositório porque a remoção não pôde ser feita
+ * automaticamente; apague a pasta `app/api/manejo/lancamentos/`.
+ */
+const RESPOSTA = {
+  error:
+    'Lançamentos de pesagem não existem mais como registro próprio. ' +
+    'Use POST /api/manejo para abrir uma nova versão do lote.',
 }
 
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const { id } = await params
-    const auth = await getAuthAndFazenda()
-    if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
-    const { supabase, fazenda_id } = auth
-
-    const { lote_id, data, num_animais, peso_medio_kg, observacao } = await request.json()
-
-    if (!lote_id || !data) {
-      return NextResponse.json({ error: 'Data e lote são obrigatórios' }, { status: 400 })
-    }
-
-    const { error } = await supabase
-      .from('manejo_lancamentos')
-      .update({
-        lote_id,
-        data,
-        num_animais: num_animais != null ? Number(num_animais) : null,
-        peso_medio_kg: peso_medio_kg != null ? Number(peso_medio_kg) : null,
-        observacao: observacao?.trim() || null
-      })
-      .eq('id', id)
-      .eq('fazenda_id', fazenda_id)
-
-    if (error) {
-      console.error('Supabase error (manejo_lancamentos update):', error)
-      return NextResponse.json({ error: 'Erro ao atualizar lançamento' }, { status: 500 })
-    }
-
-    return NextResponse.json({ success: true })
-  } catch (err) {
-    console.error('PUT /api/manejo/lancamentos/[id] error:', err)
-    return NextResponse.json({ error: 'Erro interno no servidor' }, { status: 500 })
-  }
+export async function PUT() {
+  return NextResponse.json(RESPOSTA, { status: 410 })
 }
 
-export async function DELETE(
-  _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const { id } = await params
-    const auth = await getAuthAndFazenda()
-    if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
-    const { supabase, fazenda_id } = auth
-
-    const { error } = await supabase
-      .from('manejo_lancamentos')
-      .delete()
-      .eq('id', id)
-      .eq('fazenda_id', fazenda_id)
-
-    if (error) {
-      console.error('Supabase error (manejo_lancamentos delete):', error)
-      return NextResponse.json({ error: 'Erro ao excluir lançamento' }, { status: 500 })
-    }
-
-    return NextResponse.json({ success: true })
-  } catch (err) {
-    console.error('DELETE /api/manejo/lancamentos/[id] error:', err)
-    return NextResponse.json({ error: 'Erro interno no servidor' }, { status: 500 })
-  }
+export async function DELETE() {
+  return NextResponse.json(RESPOSTA, { status: 410 })
 }

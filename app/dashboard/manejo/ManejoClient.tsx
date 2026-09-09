@@ -3,25 +3,43 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 
-export type Lote = { id: string; nome: string; num_animais?: number | null; peso_medio_kg?: number | null }
+/** Versão vigente de um lote. `lote_key` é o valor usado nos seletores. */
+export type Lote = {
+  id: string
+  lote_key: string
+  nome: string
+  num_animais?: number | null
+  peso_medio_kg?: number | null
+}
 export type Produto = { id: string; nome: string; categoria: string }
 
-export type RegistroLancamento = {
+/**
+ * Uma versão da tabela `lote` (SCD2) — o que antes era um registro em
+ * `manejo_lancamentos`. É histórico imutável: só leitura.
+ */
+export type VersaoLote = {
   id: string
+  lote_key: string
+  lote_nome: string
+  /** `valido_de`: data em que esta versão passou a valer */
   data: string
+  valido_ate: string | null
   num_animais: number | null
   peso_medio_kg: number | null
-  tipo_pesagem: string | null
-  observacao: string | null
-  lote_id: string
-  lote: { nome: string }
+  isInicial: boolean
+  isVigente: boolean
+  deltaAnimais: number | null
+  deltaPeso: number | null
 }
 
 export type RegistroAtividade = {
   id: string
   data: string
   tipo: string
+  /** id da VERSÃO do lote vigente na data do fato (SCD2) */
   lote_id: string
+  /** chave de negócio do lote — estável entre versões */
+  lote_key: string
   lote: { nome: string }
 }
 
@@ -37,8 +55,6 @@ type FormPayload = {
   data: string
   num_animais: number | null
   peso_medio_kg: number | null
-  tipo_pesagem: string
-  observacao: string | null
   atividades: {
     tipo: string
     produtos_ids: string[]
@@ -52,7 +68,6 @@ type Filtros = {
   tipo?: string
 }
 
-type ModoFormLancamento = { tipo: 'criar' } | { tipo: 'editar'; registro: RegistroLancamento }
 type ModoFormAtividade = { tipo: 'criar' } | { tipo: 'editar'; registro: RegistroAtividade }
 
 function formatarData(dataISO: string) {
@@ -67,50 +82,45 @@ const EMOJI_ATIVIDADE: Record<string, string> = {
   'Vacina': '💉',
 }
 
-// ─── Formulário de Lançamento (Pesagem) ───────────────────────
-function LancamentoForm({
-  modo,
+// ─── Formulário de Pesagem (abre uma nova versão do lote) ─────
+//
+// SCD2: cada pesagem cria uma versão nova de `lote`; versões são histórico
+// imutável, por isso este formulário só cria — não edita nem exclui.
+function PesagemForm({
   lotes,
   onSalvar,
-  onExcluir,
   onCancelar,
 }: {
-  modo: ModoFormLancamento
   lotes: Lote[]
-  onSalvar: (dados: { lote_id: string; data: string; num_animais: number | null; peso_medio_kg: number | null; observacao: string | null }) => Promise<void>
-  onExcluir?: () => Promise<void>
+  onSalvar: (dados: { lote_id: string; data: string; num_animais: number | null; peso_medio_kg: number | null }) => Promise<void>
   onCancelar: () => void
 }) {
-  const editando = modo.tipo === 'editar'
-  const inicial = editando ? modo.registro : null
   const hoje = new Date().toISOString().split('T')[0]
 
-  const [loteId, setLoteId] = useState(inicial?.lote_id ?? '')
-  const [data, setData] = useState(inicial?.data ?? hoje)
-  const [numAnimais, setNumAnimais] = useState(inicial?.num_animais?.toString() ?? '')
-  const [pesoMedio, setPesoMedio] = useState(inicial?.peso_medio_kg?.toString() ?? '')
-  const [observacao, setObservacao] = useState(inicial?.observacao ?? '')
+  const [loteKey, setLoteKey] = useState('')
+  const [data, setData] = useState(hoje)
+  const [numAnimais, setNumAnimais] = useState('')
+  const [pesoMedio, setPesoMedio] = useState('')
 
   const [loading, setLoading] = useState(false)
-  const [excluindo, setExcluindo] = useState(false)
-  const [confirmarExclusao, setConfirmarExclusao] = useState(false)
   const [erro, setErro] = useState('')
 
-  const isValido = data !== '' && loteId !== '' && (!numAnimais || Number(numAnimais) >= 0) && (!pesoMedio || Number(pesoMedio) > 0)
+  const loteSelecionado = lotes.find((l) => l.lote_key === loteKey) ?? null
+  const informouAlgo = numAnimais !== '' || pesoMedio !== ''
+
+  const isValido =
+    data !== '' &&
+    loteKey !== '' &&
+    informouAlgo &&
+    (!numAnimais || Number(numAnimais) >= 0) &&
+    (!pesoMedio || Number(pesoMedio) > 0)
 
   const handleLoteChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const novoLoteId = e.target.value
-    setLoteId(novoLoteId)
-    if (!editando) {
-      const loteSelecionado = lotes.find((l) => l.id === novoLoteId)
-      if (loteSelecionado) {
-        setNumAnimais(loteSelecionado.num_animais?.toString() ?? '')
-        setPesoMedio(loteSelecionado.peso_medio_kg?.toString() ?? '')
-      } else {
-        setNumAnimais('')
-        setPesoMedio('')
-      }
-    }
+    const nova = e.target.value
+    setLoteKey(nova)
+    const lote = lotes.find((l) => l.lote_key === nova)
+    setNumAnimais(lote?.num_animais?.toString() ?? '')
+    setPesoMedio(lote?.peso_medio_kg?.toString() ?? '')
   }
 
   const handleSalvar = async () => {
@@ -119,99 +129,71 @@ function LancamentoForm({
     setErro('')
     try {
       await onSalvar({
-        lote_id: loteId,
+        lote_id: loteKey,
         data,
         num_animais: numAnimais ? Number(numAnimais) : null,
         peso_medio_kg: pesoMedio ? Number(pesoMedio) : null,
-        observacao: observacao.trim() || null
       })
     } catch (e: unknown) {
       setErro(e instanceof Error ? e.message : 'Erro ao salvar')
     } finally { setLoading(false) }
   }
 
-  const handleExcluir = async () => {
-    if (!onExcluir) return
-    setExcluindo(true)
-    setErro('')
-    try { await onExcluir() }
-    catch (e: unknown) { setErro(e instanceof Error ? e.message : 'Erro ao excluir'); setConfirmarExclusao(false) }
-    finally { setExcluindo(false) }
-  }
-
   return (
     <div className="bg-white border-2 border-[var(--primary)] rounded-xl p-5 shadow-sm mb-6 max-w-3xl">
-      <h2 className="text-base font-semibold text-[var(--primary)] font-poppins mb-4">
-        {editando ? 'Editar Atualização de Lote' : 'Nova Atualização de Lote'}
+      <h2 className="text-base font-semibold text-[var(--primary)] font-poppins mb-1">
+        Nova Atualização de Lote
       </h2>
+      <p className="text-xs text-gray-500 font-poppins mb-4">
+        Registra uma nova versão do lote a partir desta data. O estado anterior é preservado no histórico.
+      </p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium text-[var(--text)] mb-1 font-poppins">Data <span className="text-[var(--error)]">*</span></label>
-          <input type="date" value={data} onChange={(e) => setData(e.target.value)} max={hoje} disabled={loading || excluindo}
+          <input type="date" value={data} onChange={(e) => setData(e.target.value)} max={hoje} disabled={loading}
             className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg font-poppins text-sm focus:outline-none focus:border-[var(--primary)] disabled:bg-gray-100 transition" />
         </div>
         <div>
           <label className="block text-sm font-medium text-[var(--text)] mb-1 font-poppins">Lote <span className="text-[var(--error)]">*</span></label>
-          <select value={loteId} onChange={handleLoteChange} disabled={loading || excluindo}
+          <select value={loteKey} onChange={handleLoteChange} disabled={loading}
             className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg font-poppins text-sm focus:outline-none focus:border-[var(--primary)] disabled:bg-gray-100 transition bg-white">
             <option value="">Selecione...</option>
-            {lotes.map((l) => <option key={l.id} value={l.id}>{l.nome}</option>)}
+            {lotes.map((l) => <option key={l.lote_key} value={l.lote_key}>{l.nome}</option>)}
           </select>
         </div>
         <div>
-          <label className="block text-sm font-medium text-[var(--text)] mb-1 font-poppins">Nº de Animais</label>
-          <input type="number" value={numAnimais} onChange={(e) => setNumAnimais(e.target.value)} placeholder="Ex: 50" min="0" disabled={loading || excluindo}
+          <label className="block text-sm font-medium text-[var(--text)] mb-1 font-poppins">
+            Nº de Animais
+            {loteSelecionado?.num_animais != null && (
+              <span className="ml-1 text-xs text-gray-400 font-normal">(atual: {loteSelecionado.num_animais})</span>
+            )}
+          </label>
+          <input type="number" value={numAnimais} onChange={(e) => setNumAnimais(e.target.value)} placeholder="Ex: 50" min="0" disabled={loading}
             className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg font-poppins text-sm focus:outline-none focus:border-[var(--primary)] disabled:bg-gray-100 transition" />
         </div>
         <div>
-          <label className="block text-sm font-medium text-[var(--text)] mb-1 font-poppins">Peso Médio (kg)</label>
-          <input type="number" value={pesoMedio} onChange={(e) => setPesoMedio(e.target.value)} placeholder="Ex: 380" min="0.1" step="0.1" disabled={loading || excluindo}
-            className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg font-poppins text-sm focus:outline-none focus:border-[var(--primary)] disabled:bg-gray-100 transition" />
-        </div>
-        <div className="sm:col-span-2">
-          <label className="block text-sm font-medium text-[var(--text)] mb-1 font-poppins">Observação</label>
-          <input type="text" value={observacao} onChange={(e) => setObservacao(e.target.value)} placeholder="Opcional" disabled={loading || excluindo}
+          <label className="block text-sm font-medium text-[var(--text)] mb-1 font-poppins">
+            Peso Médio (kg)
+            {loteSelecionado?.peso_medio_kg != null && (
+              <span className="ml-1 text-xs text-gray-400 font-normal">(atual: {loteSelecionado.peso_medio_kg})</span>
+            )}
+          </label>
+          <input type="number" value={pesoMedio} onChange={(e) => setPesoMedio(e.target.value)} placeholder="Ex: 380" min="0.1" step="0.1" disabled={loading}
             className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg font-poppins text-sm focus:outline-none focus:border-[var(--primary)] disabled:bg-gray-100 transition" />
         </div>
       </div>
 
       {erro && <div className="mt-3 p-3 bg-red-50 border border-[var(--error)] rounded-lg text-[var(--error)] text-sm font-poppins">{erro}</div>}
 
-      <div className="mt-4 flex flex-col gap-3">
-        <div className="flex gap-3">
-          <button onClick={handleSalvar} disabled={!isValido || loading || excluindo}
-            className="flex-1 sm:flex-none px-6 py-2.5 bg-[var(--primary)] text-white rounded-lg font-poppins font-semibold text-sm hover:bg-[#1a3009] disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed transition-colors">
-            {loading ? 'Salvando...' : editando ? 'Salvar alterações' : 'Salvar Registro'}
-          </button>
-          <button onClick={onCancelar} disabled={loading || excluindo}
-            className="flex-1 sm:flex-none px-6 py-2.5 border-2 border-gray-300 text-gray-600 rounded-lg font-poppins font-semibold text-sm hover:border-gray-400 disabled:opacity-50 transition-colors">
-            Cancelar
-          </button>
-        </div>
-        {editando && onExcluir && (
-          <div className="border-t border-gray-100 pt-3">
-            {!confirmarExclusao ? (
-              <button onClick={() => setConfirmarExclusao(true)} disabled={loading || excluindo}
-                className="text-sm text-[var(--error)] font-poppins hover:underline disabled:opacity-50">
-                Excluir registro
-              </button>
-            ) : (
-              <div className="flex items-center gap-3 flex-wrap">
-                <p className="text-sm text-[var(--error)] font-poppins font-medium">Confirmar exclusão?</p>
-                <div className="flex gap-2">
-                  <button onClick={handleExcluir} disabled={excluindo}
-                    className="px-4 py-1.5 bg-[var(--error)] text-white rounded-lg font-poppins font-semibold text-sm hover:bg-red-700 disabled:opacity-50 transition-colors">
-                    {excluindo ? 'Excluindo...' : 'Sim, excluir'}
-                  </button>
-                  <button onClick={() => setConfirmarExclusao(false)} disabled={excluindo}
-                    className="px-4 py-1.5 border-2 border-gray-300 text-gray-600 rounded-lg font-poppins font-semibold text-sm disabled:opacity-50 transition-colors">
-                    Cancelar
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
+      <div className="mt-4 flex gap-3">
+        <button onClick={handleSalvar} disabled={!isValido || loading}
+          className="flex-1 sm:flex-none px-6 py-2.5 bg-[var(--primary)] text-white rounded-lg font-poppins font-semibold text-sm hover:bg-[#1a3009] disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed transition-colors">
+          {loading ? 'Salvando...' : 'Salvar Registro'}
+        </button>
+        <button onClick={onCancelar} disabled={loading}
+          className="flex-1 sm:flex-none px-6 py-2.5 border-2 border-gray-300 text-gray-600 rounded-lg font-poppins font-semibold text-sm hover:border-gray-400 disabled:opacity-50 transition-colors">
+          Cancelar
+        </button>
       </div>
     </div>
   )
@@ -237,7 +219,8 @@ function AtividadeForm({
   const inicial = editando ? modo.registro : null
   const hoje = new Date().toISOString().split('T')[0]
 
-  const [loteId, setLoteId] = useState(inicial?.lote_id ?? '')
+  // SCD2: o seletor trabalha com a chave de negócio; a API resolve a versão pela data.
+  const [loteId, setLoteId] = useState(inicial?.lote_key ?? '')
   const [data, setData] = useState(inicial?.data ?? hoje)
   const [tipo, setTipo] = useState(inicial?.tipo ?? '')
   const [produtosIds, setProdutosIds] = useState<string[]>([])
@@ -287,7 +270,7 @@ function AtividadeForm({
           <select value={loteId} onChange={(e) => setLoteId(e.target.value)} disabled={loading || excluindo}
             className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg font-poppins text-sm focus:outline-none focus:border-[var(--primary)] disabled:bg-gray-100 transition bg-white">
             <option value="">Selecione...</option>
-            {lotes.map((l) => <option key={l.id} value={l.id}>{l.nome}</option>)}
+            {lotes.map((l) => <option key={l.lote_key} value={l.lote_key}>{l.nome}</option>)}
           </select>
         </div>
         <div>
@@ -367,19 +350,19 @@ function AtividadeForm({
 export default function ManejoClient({
   lotes,
   produtosDisponiveis,
-  lancamentos,
+  versoesLote,
   atividadesRegistradas,
   filtros
 }: {
   lotes: Lote[]
   produtosDisponiveis: Produto[]
-  lancamentos: RegistroLancamento[]
+  versoesLote: VersaoLote[]
   atividadesRegistradas: RegistroAtividade[]
   filtros: Filtros
 }) {
   const router = useRouter()
   const [modoCriar, setModoCriar] = useState<'lancamento' | 'atividade' | null>(null)
-  const [modoEditar, setModoEditar] = useState<ModoFormLancamento | ModoFormAtividade | null>(null)
+  const [modoEditar, setModoEditar] = useState<ModoFormAtividade | null>(null)
 
   // Filtros locais
   const [dataInicio, setDataInicio] = useState(filtros.de || '')
@@ -402,17 +385,16 @@ export default function ManejoClient({
   }
 
   // ── Handlers de criação ──
-  const handleCriarLancamento = async (dados: { lote_id: string; data: string; num_animais: number | null; peso_medio_kg: number | null; observacao: string | null }) => {
+  const handleCriarPesagem = async (dados: { lote_id: string; data: string; num_animais: number | null; peso_medio_kg: number | null }) => {
     const payload: FormPayload = {
       lote_id: dados.lote_id, data: dados.data,
       num_animais: dados.num_animais, peso_medio_kg: dados.peso_medio_kg,
-      tipo_pesagem: 'real', observacao: dados.observacao,
       atividades: []
     }
     const res = await fetch('/api/manejo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
     const json = await res.json()
     if (!res.ok) throw new Error(json.error)
-    mostrarSucesso('Lançamento registrado com sucesso!')
+    mostrarSucesso('Nova versão do lote registrada com sucesso!')
     setModoCriar(null)
     router.refresh()
   }
@@ -421,7 +403,6 @@ export default function ManejoClient({
     const payload: FormPayload = {
       lote_id: dados.lote_id, data: dados.data,
       num_animais: null, peso_medio_kg: null,
-      tipo_pesagem: 'real', observacao: null,
       atividades: [{ tipo: dados.tipo, produtos_ids: dados.produtos_ids }]
     }
     const res = await fetch('/api/manejo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
@@ -433,24 +414,6 @@ export default function ManejoClient({
   }
 
   // ── Handlers de edição ──
-  const handleEditarLancamento = async (id: string, dados: { lote_id: string; data: string; num_animais: number | null; peso_medio_kg: number | null; observacao: string | null }) => {
-    const res = await fetch(`/api/manejo/lancamentos/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dados) })
-    const json = await res.json()
-    if (!res.ok) throw new Error(json.error)
-    setModoEditar(null)
-    mostrarSucesso('Lançamento atualizado com sucesso!')
-    router.refresh()
-  }
-
-  const handleExcluirLancamento = async (id: string) => {
-    const res = await fetch(`/api/manejo/lancamentos/${id}`, { method: 'DELETE' })
-    const json = await res.json()
-    if (!res.ok) throw new Error(json.error)
-    setModoEditar(null)
-    mostrarSucesso('Lançamento excluído com sucesso!')
-    router.refresh()
-  }
-
   const handleEditarAtividade = async (id: string, dados: { lote_id: string; data: string; tipo: string; produtos_ids: string[] }) => {
     const res = await fetch(`/api/manejo/atividades/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dados) })
     const json = await res.json()
@@ -485,7 +448,7 @@ export default function ManejoClient({
   }
 
   const temFiltroAtivo = !!(filtros.de || filtros.ate || filtros.lote || filtros.tipo)
-  const temRegistros = lancamentos.length > 0 || atividadesRegistradas.length > 0
+  const temRegistros = versoesLote.length > 0 || atividadesRegistradas.length > 0
 
   return (
     <div>
@@ -515,10 +478,9 @@ export default function ManejoClient({
 
       {/* Formulários de criação */}
       {modoCriar === 'lancamento' && (
-        <LancamentoForm
-          modo={{ tipo: 'criar' }}
+        <PesagemForm
           lotes={lotes}
-          onSalvar={handleCriarLancamento}
+          onSalvar={handleCriarPesagem}
           onCancelar={() => setModoCriar(null)}
         />
       )}
@@ -552,7 +514,7 @@ export default function ManejoClient({
               <select value={filtroLote} onChange={(e) => setFiltroLote(e.target.value)}
                 className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg font-poppins text-sm focus:outline-none focus:border-[var(--primary)] transition bg-white">
                 <option value="">Todos os lotes</option>
-                {lotes.map((l) => <option key={l.id} value={l.id}>{l.nome}</option>)}
+                {lotes.map((l) => <option key={l.lote_key} value={l.lote_key}>{l.nome}</option>)}
               </select>
             </div>
             <div className="flex-1 min-w-[140px]">
@@ -560,7 +522,7 @@ export default function ManejoClient({
               <select value={filtroTipo} onChange={(e) => setFiltroTipo(e.target.value)}
                 className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg font-poppins text-sm focus:outline-none focus:border-[var(--primary)] transition bg-white">
                 <option value="todos">Todos</option>
-                <option value="lancamentos">Lançamentos de Pesagem</option>
+                <option value="lancamentos">Atualizações de Lote</option>
                 <option value="atividades">Atividades</option>
               </select>
             </div>
@@ -583,50 +545,57 @@ export default function ManejoClient({
       {/* Cards de registros */}
       {modoCriar === null && temRegistros && (
         <div className="space-y-6">
-          {/* Lançamentos de Pesagem */}
-          {lancamentos.length > 0 && (
+          {/* Versões do lote (pesagens e contagens) — histórico imutável */}
+          {versoesLote.length > 0 && (
             <div>
               <h2 className="text-base font-semibold text-[var(--text)] font-poppins mb-3 flex items-center gap-2">
-                ⚖️ Lançamentos de Pesagem
-                <span className="text-xs font-normal text-gray-400">({lancamentos.length})</span>
+                ⚖️ Atualizações de Lote
+                <span className="text-xs font-normal text-gray-400">({versoesLote.length})</span>
               </h2>
               <div className="space-y-2">
-                {lancamentos.map((r) => {
-                  const isEditando = modoEditar && 'registro' in modoEditar && modoEditar.registro.id === r.id && 'num_animais' in modoEditar.registro
-                  return (
-                    <div key={r.id}>
-                      {isEditando ? (
-                        <LancamentoForm
-                          modo={{ tipo: 'editar', registro: r }}
-                          lotes={lotes}
-                          onSalvar={(dados) => handleEditarLancamento(r.id, dados)}
-                          onExcluir={() => handleExcluirLancamento(r.id)}
-                          onCancelar={() => setModoEditar(null)}
-                        />
-                      ) : (
-                        <button
-                          onClick={() => setModoEditar({ tipo: 'editar', registro: r })}
-                          className="w-full text-left bg-white rounded-xl px-4 py-3 shadow-sm border border-gray-100 hover:border-[var(--primary)] hover:shadow-md transition-all duration-200 flex items-center justify-between gap-4"
-                        >
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-[var(--text)] font-poppins">{r.lote?.nome || 'Lote'}</p>
-                            <p className="text-xs text-gray-500 font-poppins mt-0.5">
-                              📅 {formatarData(r.data)}
-                              {r.num_animais != null && ` · ${r.num_animais} animais`}
-                              {r.observacao && ` · ${r.observacao}`}
-                            </p>
-                          </div>
-                          {r.peso_medio_kg != null && (
-                            <div className="text-right shrink-0">
-                              <span className="text-lg font-bold text-[var(--accent)] font-poppins">{Number(r.peso_medio_kg).toFixed(1)}</span>
-                              <span className="text-xs text-gray-500 font-poppins ml-1">kg/cab</span>
-                            </div>
-                          )}
-                        </button>
-                      )}
+                {versoesLote.map((v) => (
+                  <div
+                    key={v.id}
+                    className="bg-white rounded-xl px-4 py-3 shadow-sm border border-gray-100 flex items-center justify-between gap-4"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm font-semibold text-[var(--text)] font-poppins">{v.lote_nome}</p>
+                        {v.isInicial && (
+                          <span className="text-[10px] font-poppins bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">
+                            Cadastro inicial
+                          </span>
+                        )}
+                        {v.isVigente && (
+                          <span className="text-[10px] font-poppins bg-green-50 text-green-700 border border-green-200 px-1.5 py-0.5 rounded-full">
+                            Vigente
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-500 font-poppins mt-0.5">
+                        📅 {formatarData(v.data)}
+                        {v.valido_ate && ` → ${formatarData(v.valido_ate)}`}
+                        {v.num_animais != null && ` · ${v.num_animais} animais`}
+                        {v.deltaAnimais != null && v.deltaAnimais !== 0 && (
+                          <span className={v.deltaAnimais > 0 ? 'text-green-600' : 'text-[var(--error)]'}>
+                            {' '}({v.deltaAnimais > 0 ? '+' : ''}{v.deltaAnimais})
+                          </span>
+                        )}
+                      </p>
                     </div>
-                  )
-                })}
+                    {v.peso_medio_kg != null && (
+                      <div className="text-right shrink-0">
+                        <span className="text-lg font-bold text-[var(--accent)] font-poppins">{Number(v.peso_medio_kg).toFixed(1)}</span>
+                        <span className="text-xs text-gray-500 font-poppins ml-1">kg/cab</span>
+                        {v.deltaPeso != null && v.deltaPeso !== 0 && (
+                          <p className={`text-[11px] font-poppins font-semibold ${v.deltaPeso > 0 ? 'text-green-600' : 'text-[var(--error)]'}`}>
+                            {v.deltaPeso > 0 ? '+' : ''}{v.deltaPeso} kg
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
             </div>
           )}
@@ -640,7 +609,7 @@ export default function ManejoClient({
               </h2>
               <div className="space-y-2">
                 {atividadesRegistradas.map((a) => {
-                  const isEditando = modoEditar && 'registro' in modoEditar && modoEditar.registro.id === a.id && 'tipo' in modoEditar.registro
+                  const isEditando = modoEditar?.tipo === 'editar' && modoEditar.registro.id === a.id
                   return (
                     <div key={a.id}>
                       {isEditando ? (

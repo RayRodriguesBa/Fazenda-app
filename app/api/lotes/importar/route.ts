@@ -1,4 +1,5 @@
 import { createClient } from '@/app/lib/supabase/server'
+import { hojeISO } from '@/app/lib/lote'
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 
@@ -36,11 +37,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
     }
 
-    // Buscar lotes já existentes nesta fazenda para evitar duplicatas
+    // Buscar lotes já existentes nesta fazenda para evitar duplicatas.
+    // SCD2: só as versões vigentes contam — versões antigas repetem o mesmo nome.
     const { data: lotesExistentes } = await supabase
       .from('lote')
       .select('nome')
       .eq('fazenda_id', fazenda_id)
+      .is('valido_ate', null)
 
     const nomesExistentes = new Set(
       (lotesExistentes ?? []).map((l: { nome: string }) => l.nome.toLowerCase().trim())
@@ -48,12 +51,21 @@ export async function POST(request: NextRequest) {
 
     const lotesValidos = lotes.filter((l) => !nomesExistentes.has(l.nome.toLowerCase().trim()))
 
-    const lotesParaInserir = lotesValidos.map((l) => ({
-      nome: l.nome.trim(),
-      sexo: l.sexo?.trim() || null,
-      num_animais: l.num_animais ?? null,
-      fazenda_id,
-    }))
+    const valido_de = hojeISO()
+    const lotesParaInserir = lotesValidos.map((l) => {
+      // Versão 1: lote_key = id (chave de negócio nasce junto com a primeira versão).
+      const id = crypto.randomUUID()
+      return {
+        id,
+        lote_key: id,
+        valido_de,
+        valido_ate: null,
+        nome: l.nome.trim(),
+        sexo: l.sexo?.trim() || null,
+        num_animais: l.num_animais ?? null,
+        fazenda_id,
+      }
+    })
 
     if (lotesParaInserir.length === 0) {
       return NextResponse.json({

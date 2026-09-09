@@ -1,4 +1,5 @@
 import { createClient } from '@/app/lib/supabase/server'
+import { resolverLoteVersaoId } from '@/app/lib/lote'
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 
@@ -30,9 +31,15 @@ export async function PUT(
       return NextResponse.json({ error: 'Data, lote e tipo são obrigatórios' }, { status: 400 })
     }
 
+    // SCD2: o fato aponta para a versão do lote válida na data do fato.
+    const loteVersaoId = await resolverLoteVersaoId(lote_id, data, fazenda_id)
+    if (!loteVersaoId) {
+      return NextResponse.json({ error: 'Lote não encontrado nesta fazenda' }, { status: 404 })
+    }
+
     const { error } = await supabase
       .from('manejo_atividade')
-      .update({ lote_id, data, tipo })
+      .update({ lote_id: loteVersaoId, data, tipo })
       .eq('id', id)
       .eq('fazenda_id', fazenda_id)
 

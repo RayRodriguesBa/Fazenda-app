@@ -3,17 +3,33 @@
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import ExcelJS from 'exceljs'
-import { ClipboardList } from 'lucide-react'
+import { ClipboardList, History } from 'lucide-react'
 
 
+/** Versão vigente de um lote (SCD2). `lote_key` é a chave de negócio, estável entre versões. */
 export type Lote = {
   id: string
+  lote_key: string
   nome: string
   descricao: string | null
   num_animais: number | null
   peso_medio_kg: number | null
   sexo: string | null
   ativo: boolean
+}
+
+/** Uma linha da tabela `lote` na linha do tempo de um lote. */
+export type VersaoLote = {
+  id: string
+  lote_key: string
+  valido_de: string
+  valido_ate: string | null
+  num_animais: number | null
+  peso_medio_kg: number | null
+  isInicial: boolean
+  isVigente: boolean
+  deltaAnimais: number | null
+  deltaPeso: number | null
 }
 
 type LotePreview = {
@@ -416,12 +432,14 @@ function MultiSelect({ options, selectedIds, onChange, placeholder }: { options:
 
 export default function LotesClient({
   lotes,
+  historicoLotes,
   piquetes,
   movimentacoes,
   isGestor,
   fazendaId,
 }: {
   lotes: Lote[]
+  historicoLotes?: VersaoLote[]
   piquetes: Piquete[]
   movimentacoes?: any[]
   isGestor?: boolean
@@ -433,6 +451,7 @@ export default function LotesClient({
   const [showNovoPiquete, setShowNovoPiquete] = useState(false)
   const [editandoLote, setEditandoLote] = useState<Lote | null>(null)
   const [editandoPiquete, setEditandoPiquete] = useState<Piquete | null>(null)
+  const [historicoDoLote, setHistoricoDoLote] = useState<Lote | null>(null)
   const [sucesso, setSucesso] = useState('')
 
   // Estado de importação
@@ -453,7 +472,7 @@ export default function LotesClient({
   }
 
   type Pastejo = {
-    lote_id: string
+    lote_key: string
     lote_nome: string
     data_entrada: string
     data_saida: string | null
@@ -472,14 +491,17 @@ export default function LotesClient({
     const abertos: Record<string, Pastejo> = {}
 
     for (const mov of movs) {
-      const loteNome = lotes.find(l => l.id === mov.lote_id)?.nome || 'Lote Desconhecido'
+      // SCD2: pareia por chave de negócio — o lote_id muda a cada nova versão,
+      // e usá-lo aqui partiria um pastejo em dois quando houvesse uma pesagem no meio.
+      const loteKey = mov.lote_key ?? mov.lote_id
+      const loteNome = lotes.find(l => l.lote_key === loteKey)?.nome || 'Lote Desconhecido'
       if (mov.tipo_operacao === 'Entrada') {
         // If there's already an open pastejo for this lote, close it implicitly
-        if (abertos[mov.lote_id]) {
-          delete abertos[mov.lote_id]
+        if (abertos[loteKey]) {
+          delete abertos[loteKey]
         }
         const p: Pastejo = {
-          lote_id: mov.lote_id,
+          lote_key: loteKey,
           lote_nome: loteNome,
           data_entrada: mov.data,
           data_saida: null,
@@ -487,20 +509,20 @@ export default function LotesClient({
           altura_saida: null,
           dias_ocupado: null
         }
-        abertos[mov.lote_id] = p
+        abertos[loteKey] = p
         pastejos.push(p)
       } else if (mov.tipo_operacao === 'Saída') {
-        const p = abertos[mov.lote_id]
+        const p = abertos[loteKey]
         if (p) {
           p.data_saida = mov.data
           p.altura_saida = mov.media_altura
           const d1 = new Date(p.data_entrada)
           const d2 = new Date(mov.data)
           p.dias_ocupado = Math.max(0, Math.floor((d2.getTime() - d1.getTime()) / 86400000))
-          delete abertos[mov.lote_id]
+          delete abertos[loteKey]
         } else {
           pastejos.push({
-            lote_id: mov.lote_id,
+            lote_key: loteKey,
             lote_nome: loteNome,
             data_entrada: '?',
             data_saida: mov.data,
@@ -596,6 +618,13 @@ export default function LotesClient({
 
       return statusB.dias - statusA.dias
     })
+
+  // Versões do lote aberto no modal de histórico, da mais recente para a mais antiga.
+  const versoesDoLoteSelecionado = historicoDoLote
+    ? (historicoLotes ?? [])
+        .filter((v) => v.lote_key === historicoDoLote.lote_key)
+        .sort((a, b) => b.valido_de.localeCompare(a.valido_de))
+    : []
 
   const mostrarSucesso = (msg: string) => {
     setSucesso(msg)
@@ -1002,6 +1031,7 @@ export default function LotesClient({
                       onCancelar={() => setEditandoLote(null)}
                     />
                   ) : (
+                    <div className="flex items-stretch gap-2">
                       <button
                         onClick={() => {
                           if (isGestor) {
@@ -1010,11 +1040,10 @@ export default function LotesClient({
                           }
                         }}
                         disabled={!isGestor}
-                        className={`w-full text-left bg-white rounded-xl px-4 py-3 shadow-sm border border-gray-100 transition-all duration-200 ${
+                        className={`flex-1 min-w-0 text-left bg-white rounded-xl px-4 py-3 shadow-sm border border-gray-100 transition-all duration-200 ${
                           isGestor ? 'hover:border-[var(--primary)] hover:shadow-md cursor-pointer' : 'cursor-default'
                         }`}
                       >
-                      <div className="flex items-start justify-between gap-3">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
                             <p className="font-semibold text-[var(--text)] font-poppins text-sm">
@@ -1047,11 +1076,115 @@ export default function LotesClient({
                             )}
                           </div>
                         </div>
-                      </div>
-                    </button>
+                      </button>
+
+                      <button
+                        onClick={() => setHistoricoDoLote(lote)}
+                        title="Ver histórico de alterações"
+                        aria-label={`Ver histórico de alterações do lote ${lote.nome}`}
+                        className="shrink-0 px-3 bg-white rounded-xl shadow-sm border border-gray-100 text-gray-400 hover:border-[var(--primary)] hover:text-[var(--primary)] hover:shadow-md transition-all duration-200 flex items-center justify-center"
+                      >
+                        <History className="w-5 h-5" />
+                      </button>
+                    </div>
                   )}
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* Histórico de alterações do lote (versões SCD2) */}
+          {historicoDoLote && (
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+              onClick={() => setHistoricoDoLote(null)}
+            >
+              <div
+                className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col overflow-hidden border border-gray-200"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="px-5 py-4 border-b border-gray-100 bg-gradient-to-r from-[var(--primary)] to-[#3a6b1e]">
+                  <h3 className="text-lg font-bold text-white font-poppins flex items-center gap-2">
+                    🕘 Histórico — {historicoDoLote.nome}
+                  </h3>
+                  <p className="text-sm text-white/80 font-poppins mt-0.5">
+                    {versoesDoLoteSelecionado.length} versã{versoesDoLoteSelecionado.length === 1 ? 'o' : 'ões'} registrada{versoesDoLoteSelecionado.length === 1 ? '' : 's'}
+                  </p>
+                </div>
+
+                <div className="overflow-y-auto flex-1 px-5 py-4">
+                  {versoesDoLoteSelecionado.length === 0 ? (
+                    <p className="text-sm text-gray-400 font-poppins text-center py-8">
+                      Nenhuma versão registrada para este lote.
+                    </p>
+                  ) : (
+                    <ol className="space-y-1">
+                      {versoesDoLoteSelecionado.map((v, i) => (
+                        <li key={v.id} className="flex gap-3">
+                          {/* Trilho da linha do tempo: ponto + conector até o próximo item */}
+                          <div className="flex flex-col items-center shrink-0 pt-1.5">
+                            <span
+                              className={`w-3 h-3 rounded-full shrink-0 ${
+                                v.isVigente ? 'bg-[var(--primary-light)]' : 'bg-gray-300'
+                              }`}
+                            />
+                            {i < versoesDoLoteSelecionado.length - 1 && (
+                              <span className="w-0.5 flex-1 bg-gray-200 mt-1" />
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0 pb-4">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="text-sm font-semibold text-[var(--text)] font-poppins">
+                                {formatarData(v.valido_de)}
+                                {v.valido_ate && (
+                                  <span className="text-gray-400 font-normal"> → {formatarData(v.valido_ate)}</span>
+                                )}
+                              </p>
+                              {v.isInicial && (
+                                <span className="text-[10px] font-poppins bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">
+                                  Cadastro inicial
+                                </span>
+                              )}
+                              {v.isVigente && (
+                                <span className="text-[10px] font-poppins bg-green-50 text-green-700 border border-green-200 px-1.5 py-0.5 rounded-full">
+                                  Vigente
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex gap-4 mt-1 flex-wrap">
+                              <span className="text-xs text-gray-600 font-poppins">
+                                🐄 {v.num_animais ?? '—'} animais
+                                {v.deltaAnimais != null && v.deltaAnimais !== 0 && (
+                                  <span className={v.deltaAnimais > 0 ? 'text-green-600 font-semibold' : 'text-[var(--error)] font-semibold'}>
+                                    {' '}({v.deltaAnimais > 0 ? '+' : ''}{v.deltaAnimais})
+                                  </span>
+                                )}
+                              </span>
+                              <span className="text-xs text-gray-600 font-poppins">
+                                ⚖️ {v.peso_medio_kg ?? '—'} kg
+                                {v.deltaPeso != null && v.deltaPeso !== 0 && (
+                                  <span className={v.deltaPeso > 0 ? 'text-green-600 font-semibold' : 'text-[var(--error)] font-semibold'}>
+                                    {' '}({v.deltaPeso > 0 ? '+' : ''}{v.deltaPeso})
+                                  </span>
+                                )}
+                              </span>
+                            </div>
+                          </div>
+                        </li>
+                      ))}
+                    </ol>
+                  )}
+                </div>
+
+                <div className="px-5 py-4 border-t border-gray-100">
+                  <button
+                    onClick={() => setHistoricoDoLote(null)}
+                    className="w-full px-5 py-2.5 border-2 border-gray-300 text-gray-600 rounded-lg font-poppins font-semibold text-sm hover:border-gray-400 transition-colors"
+                  >
+                    Fechar
+                  </button>
+                </div>
+              </div>
             </div>
           )}
         </div>

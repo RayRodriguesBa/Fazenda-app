@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/app/lib/supabase/server'
 import { cookies } from 'next/headers'
-import LotesClient, { type Lote, type Piquete } from './LotesClient'
+import LotesClient, { type Lote, type Piquete, type VersaoLote } from './LotesClient'
 
 async function fetchAllMovimentacoes(supabase: Awaited<ReturnType<typeof createClient>>, fazendaId: string) {
   const PAGE_SIZE = 1000
@@ -27,6 +27,59 @@ async function fetchAllMovimentacoes(supabase: Awaited<ReturnType<typeof createC
   return allMovs
 }
 
+type LinhaVersao = {
+  id: string
+  lote_key: string
+  nome: string
+  descricao: string | null
+  num_animais: number | null
+  peso_medio_kg: number | null
+  sexo: string | null
+  ativo: boolean
+  valido_de: string
+  valido_ate: string | null
+}
+
+/** Monta a linha do tempo de cada lote, com o delta entre versões consecutivas. */
+function montarHistorico(linhas: LinhaVersao[]): VersaoLote[] {
+  const porLote = new Map<string, LinhaVersao[]>()
+  for (const l of linhas) {
+    const lista = porLote.get(l.lote_key) ?? []
+    lista.push(l)
+    porLote.set(l.lote_key, lista)
+  }
+
+  const resultado: VersaoLote[] = []
+
+  for (const lista of porLote.values()) {
+    lista.sort((a, b) => a.valido_de.localeCompare(b.valido_de))
+
+    lista.forEach((v, i) => {
+      const anterior = i > 0 ? lista[i - 1] : null
+      resultado.push({
+        id: v.id,
+        lote_key: v.lote_key,
+        valido_de: v.valido_de,
+        valido_ate: v.valido_ate,
+        num_animais: v.num_animais,
+        peso_medio_kg: v.peso_medio_kg,
+        isInicial: i === 0,
+        isVigente: v.valido_ate === null,
+        deltaAnimais:
+          anterior && v.num_animais != null && anterior.num_animais != null
+            ? v.num_animais - anterior.num_animais
+            : null,
+        deltaPeso:
+          anterior && v.peso_medio_kg != null && anterior.peso_medio_kg != null
+            ? Number((v.peso_medio_kg - anterior.peso_medio_kg).toFixed(1))
+            : null,
+      })
+    })
+  }
+
+  return resultado.sort((a, b) => b.valido_de.localeCompare(a.valido_de))
+}
+
 export default async function LotesPage() {
   const supabase = await createClient()
 
@@ -45,16 +98,19 @@ export default async function LotesPage() {
   const fazendaId = cookieStore.get('fazenda_id')?.value
 
   let lotes: Lote[] = []
+  let historicoLotes: VersaoLote[] = []
   let piquetes: Piquete[] = []
   let movimentacoes: any[] = []
 
   if (fazendaId) {
-    const [resLotes, resPiquetes, allMovs] = await Promise.all([
+    const [resVersoes, resPiquetes, allMovs] = await Promise.all([
+      // SCD2: busca TODAS as versões — as vigentes viram a lista, o conjunto
+      // completo vira o histórico e o mapa id → lote_key dos fatos.
       supabase
         .from('lote')
-        .select('id, nome, descricao, num_animais, peso_medio_kg, sexo, ativo')
+        .select('id, lote_key, nome, descricao, num_animais, peso_medio_kg, sexo, ativo, valido_de, valido_ate')
         .eq('fazenda_id', fazendaId)
-        .order('nome'),
+        .order('valido_de', { ascending: true }),
       supabase
         .from('piquete')
         .select('id, nome, area_ha, aproveitamento_pasto, forrageira, ativo')
@@ -63,14 +119,41 @@ export default async function LotesPage() {
       fetchAllMovimentacoes(supabase, fazendaId),
     ])
 
-    lotes = (resLotes.data || []) as Lote[]
+    const versoes = (resVersoes.data || []) as LinhaVersao[]
+
+    lotes = versoes
+      .filter((v) => v.valido_ate === null)
+      .map((v) => ({
+        id: v.id,
+        lote_key: v.lote_key,
+        nome: v.nome,
+        descricao: v.descricao,
+        num_animais: v.num_animais,
+        peso_medio_kg: v.peso_medio_kg,
+        sexo: v.sexo,
+        ativo: v.ativo,
+      }))
+      .sort((a, b) => a.nome.localeCompare(b.nome))
+
+    historicoLotes = montarHistorico(versoes)
+
+    const loteKeyPorId: Record<string, string> = {}
+    for (const v of versoes) loteKeyPorId[v.id] = v.lote_key
+
+    // Os fatos referenciam ids de versão; o pareamento de pastejo precisa da
+    // chave de negócio, senão uma pesagem no meio de um pastejo o partiria em dois.
+    movimentacoes = allMovs.map((m) => ({
+      ...m,
+      lote_key: loteKeyPorId[m.lote_id] ?? m.lote_id,
+    }))
+
     piquetes = resPiquetes.data || []
-    movimentacoes = allMovs
   }
 
   return (
     <LotesClient
       lotes={lotes}
+      historicoLotes={historicoLotes}
       piquetes={piquetes}
       movimentacoes={movimentacoes}
       isGestor={true}
@@ -78,4 +161,3 @@ export default async function LotesPage() {
     />
   )
 }
-

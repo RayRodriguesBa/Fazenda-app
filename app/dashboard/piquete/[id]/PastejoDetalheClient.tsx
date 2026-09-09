@@ -15,13 +15,16 @@ type MovimentacaoDetalhe = {
   altura3: number | null
   altura4: number | null
   altura5: number | null
+  /** id da VERSÃO do lote vigente na data do fato (SCD2) */
   lote_id: string
+  /** chave de negócio do lote — estável entre versões */
+  lote_key: string
 }
 
-type Lote = { id: string; nome: string }
+type Lote = { lote_key: string; nome: string }
 
 type PastejoDetalhe = {
-  lote_id: string
+  lote_key: string
   lote_nome: string
   data_entrada: string
   data_saida: string | null
@@ -47,16 +50,19 @@ function getPastejosDetalhe(movimentacoes: MovimentacaoDetalhe[], lotes: Lote[])
   const movsSorted = [...movimentacoes].sort((a, b) => new Date(a.data).getTime() - new Date(b.data).getTime())
 
   for (const mov of movsSorted) {
-    const loteNome = lotes.find(l => l.id === mov.lote_id)?.nome || 'Lote Desconhecido'
+    // SCD2: pareia por chave de negócio — o lote_id muda a cada nova versão,
+    // e usá-lo aqui partiria um pastejo em dois quando houvesse uma pesagem no meio.
+    const loteKey = mov.lote_key ?? mov.lote_id
+    const loteNome = lotes.find(l => l.lote_key === loteKey)?.nome || 'Lote Desconhecido'
     const alturas: (number | null)[] = [mov.altura1, mov.altura2, mov.altura3, mov.altura4, mov.altura5]
 
     if (mov.tipo_operacao === 'Entrada') {
       // If there's already an open pastejo for this lote, close it implicitly
-      if (abertos[mov.lote_id]) {
-        delete abertos[mov.lote_id]
+      if (abertos[loteKey]) {
+        delete abertos[loteKey]
       }
       const p: PastejoDetalhe = {
-        lote_id: mov.lote_id,
+        lote_key: loteKey,
         lote_nome: loteNome,
         data_entrada: mov.data,
         data_saida: null,
@@ -67,10 +73,10 @@ function getPastejosDetalhe(movimentacoes: MovimentacaoDetalhe[], lotes: Lote[])
         dias_ocupado: null,
         dias_descanso_previo: null,
       }
-      abertos[mov.lote_id] = p
+      abertos[loteKey] = p
       pastejos.push(p)
     } else if (mov.tipo_operacao === 'Saída') {
-      const p = abertos[mov.lote_id]
+      const p = abertos[loteKey]
       if (p) {
         p.data_saida = mov.data
         p.media_saida = mov.media_altura
@@ -78,10 +84,10 @@ function getPastejosDetalhe(movimentacoes: MovimentacaoDetalhe[], lotes: Lote[])
         const d1 = new Date(p.data_entrada)
         const d2 = new Date(mov.data)
         p.dias_ocupado = Math.max(0, Math.floor((d2.getTime() - d1.getTime()) / 86400000))
-        delete abertos[mov.lote_id]
+        delete abertos[loteKey]
       } else {
         pastejos.push({
-          lote_id: mov.lote_id,
+          lote_key: loteKey,
           lote_nome: loteNome,
           data_entrada: '?',
           data_saida: mov.data,

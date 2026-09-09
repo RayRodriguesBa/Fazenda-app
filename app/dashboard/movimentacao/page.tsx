@@ -17,21 +17,29 @@ export default async function MovimentacaoPage({
   const cookieStore = await cookies()
   const fazendaId = cookieStore.get('fazenda_id')?.value
 
-  let lotes: { id: string; nome: string }[] = []
+  let lotes: { id: string; lote_key: string; nome: string }[] = []
   let piquetes: { id: string; nome: string }[] = []
   let registros: Movimentacao[] = []
   let historico: { lote_id: string; piquete_id: string; tipo_operacao: string; data: string; created_at: string }[] = []
+  let versoesLote: { id: string; lote_key: string }[] = []
   let error = null
 
   if (fazendaId) {
     const admin = createAdminClient()
-    const [resLotes, resPiquetes, resRegistros, resHistorico] = await Promise.all([
+    const [resLotes, resVersoes, resPiquetes, resRegistros, resHistorico] = await Promise.all([
+      // SCD2: o seletor lista apenas as versões vigentes de cada lote.
       admin
         .from('lote')
-        .select('id, nome')
+        .select('id, lote_key, nome')
         .eq('ativo', true)
+        .is('valido_ate', null)
         .eq('fazenda_id', fazendaId)
         .order('nome'),
+      // Todas as versões: usadas para mapear o lote_id histórico dos fatos.
+      admin
+        .from('lote')
+        .select('id, lote_key')
+        .eq('fazenda_id', fazendaId),
       admin
         .from('piquete')
         .select('id, nome')
@@ -57,6 +65,7 @@ export default async function MovimentacaoPage({
         .order('created_at', { ascending: false }),
     ])
     lotes = resLotes.data || []
+    versoesLote = resVersoes.data || []
     piquetes = resPiquetes.data || []
     registros = (resRegistros.data ?? []) as unknown as Movimentacao[]
     historico = resHistorico.data || []
@@ -65,16 +74,25 @@ export default async function MovimentacaoPage({
 
   if (error) console.error('Erro ao buscar movimentações:', error)
 
-  const lista = (registros ?? []) as unknown as Movimentacao[]
+  // SCD2: um mesmo lote tem vários ids ao longo do tempo. Tudo que agrupa fatos
+  // por lote precisa usar a chave de negócio, não o id da versão.
+  const loteKeyPorId: Record<string, string> = {}
+  for (const v of versoesLote) loteKeyPorId[v.id] = v.lote_key
+
+  const lista = ((registros ?? []) as unknown as Movimentacao[]).map((r) => ({
+    ...r,
+    lote_key: loteKeyPorId[r.lote_id] ?? r.lote_id,
+  }))
 
   const piqueteAtualPorLote: Record<string, string> = {}
   const processedLotes = new Set<string>()
   const piquetesOcupados = new Set<string>()
 
   for (const mov of historico ?? []) {
-    if (!processedLotes.has(mov.lote_id)) {
-      processedLotes.add(mov.lote_id)
-      piqueteAtualPorLote[mov.lote_id] = mov.piquete_id
+    const loteKey = loteKeyPorId[mov.lote_id] ?? mov.lote_id
+    if (!processedLotes.has(loteKey)) {
+      processedLotes.add(loteKey)
+      piqueteAtualPorLote[loteKey] = mov.piquete_id
       if (mov.tipo_operacao === 'Entrada') {
         piquetesOcupados.add(mov.piquete_id)
       }

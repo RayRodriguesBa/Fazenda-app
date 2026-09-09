@@ -14,8 +14,9 @@ export default async function CochoPage(props: {
   const cookieStore = await cookies()
   const fazendaId = cookieStore.get('fazenda_id')?.value
 
-  let lotes: { id: string; nome: string }[] = []
+  let lotes: { id: string; lote_key: string; nome: string }[] = []
   let registros: RegistroCocho[] = []
+  let versoesLote: { id: string; lote_key: string }[] = []
   let error = null
 
   if (fazendaId) {
@@ -29,18 +30,34 @@ export default async function CochoPage(props: {
     if (ate) query = query.lte('data', ate)
 
     const admin = createAdminClient()
-    const [resLotes, resRegistros] = await Promise.all([
-      admin.from('lote').select('id, nome').eq('ativo', true).eq('fazenda_id', fazendaId).order('nome'),
+    const [resLotes, resVersoes, resRegistros] = await Promise.all([
+      // SCD2: o seletor lista apenas as versões vigentes de cada lote.
+      admin
+        .from('lote')
+        .select('id, lote_key, nome')
+        .eq('ativo', true)
+        .is('valido_ate', null)
+        .eq('fazenda_id', fazendaId)
+        .order('nome'),
+      // Todas as versões: mapeiam o lote_id histórico dos registros.
+      admin.from('lote').select('id, lote_key').eq('fazenda_id', fazendaId),
       query.limit(100), // Aumentando o limite se houver filtros
     ])
     lotes = resLotes.data || []
+    versoesLote = resVersoes.data || []
     registros = (resRegistros.data ?? []) as unknown as RegistroCocho[]
     error = resRegistros.error
   }
 
   if (error) console.error('Erro ao buscar cocho:', error)
 
-  const lista = (registros ?? []) as unknown as RegistroCocho[]
+  const loteKeyPorId: Record<string, string> = {}
+  for (const v of versoesLote) loteKeyPorId[v.id] = v.lote_key
+
+  const lista = ((registros ?? []) as unknown as RegistroCocho[]).map((r) => ({
+    ...r,
+    lote_key: loteKeyPorId[r.lote_id] ?? r.lote_id,
+  }))
 
   return (
     <div>

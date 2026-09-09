@@ -35,19 +35,36 @@ export default async function PiqueteDetalhePage({
       .eq('fazenda_id', fazendaId)
       .order('data', { ascending: true })
       .order('created_at', { ascending: true }),
+    // SCD2: todas as versões — os fatos históricos apontam para ids antigos,
+    // então o mapa id → lote_key precisa cobrir o lote inteiro, não só o vigente.
     supabase
       .from('lote')
-      .select('id, nome')
+      .select('id, lote_key, nome')
       .eq('fazenda_id', fazendaId),
   ])
 
   if (!resPiquete.data) redirect('/dashboard/lotes')
 
+  const versoes = resLotes.data || []
+
+  const loteKeyPorId: Record<string, string> = {}
+  for (const v of versoes) loteKeyPorId[v.id] = v.lote_key
+
+  const movimentacoes = (resMovs.data || []).map((m) => ({
+    ...m,
+    lote_key: loteKeyPorId[m.lote_id] ?? m.lote_id,
+  }))
+
+  // Um nome por chave de negócio (o nome é propagado a todas as versões).
+  const lotes = Array.from(
+    new Map(versoes.map((v) => [v.lote_key, { lote_key: v.lote_key, nome: v.nome }])).values()
+  )
+
   return (
     <PastejoDetalheClient
       piquete={resPiquete.data}
-      movimentacoes={resMovs.data || []}
-      lotes={resLotes.data || []}
+      movimentacoes={movimentacoes}
+      lotes={lotes}
       de={de}
       ate={ate}
     />

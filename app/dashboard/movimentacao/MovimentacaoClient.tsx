@@ -14,7 +14,10 @@ export type Movimentacao = {
   altura4: number | null
   altura5: number | null
   observacao: string | null
+  /** id da VERSÃO do lote vigente na data do fato (SCD2) */
   lote_id: string
+  /** chave de negócio do lote — estável entre versões; use-a para agrupar/selecionar */
+  lote_key: string
   piquete_id: string
   qualidade: 'Bom' | 'Sementado' | 'Seco' | null
   foto_url: string | null
@@ -28,7 +31,8 @@ export type PiqueteDescanso = {
   diasDescanso: number
 }
 
-type Lote = { id: string; nome: string }
+/** Versão vigente de um lote. `lote_key` é o valor usado nos seletores. */
+type Lote = { id: string; lote_key: string; nome: string }
 type Piquete = { id: string; nome: string }
 type AlturaKey = 'altura1' | 'altura2' | 'altura3' | 'altura4' | 'altura5'
 type Modo = { tipo: 'criar' } | { tipo: 'editar'; registro: Movimentacao }
@@ -75,7 +79,8 @@ function MovimentacaoForm({
   const hoje = new Date().toISOString().split('T')[0]
 
   const [data, setData] = useState(inicial?.data ?? hoje)
-  const [loteId, setLoteId] = useState(inicial?.lote_id ?? '')
+  // SCD2: o seletor trabalha com a chave de negócio; a API resolve a versão pela data.
+  const [loteId, setLoteId] = useState(inicial?.lote_key ?? '')
   const [piqueteId, setPiqueteId] = useState(inicial?.piquete_id ?? '')
   const [tipo, setTipo] = useState<'Entrada' | 'Saída' | ''>(inicial?.tipo_operacao ?? '')
   const [qualidade, setQualidade] = useState<'Bom' | 'Sementado' | 'Seco' | ''>(inicial?.qualidade ?? '')
@@ -208,8 +213,8 @@ function MovimentacaoForm({
     : !tipo
       ? []
       : tipo === 'Saída'
-        ? lotes.filter(l => !!piqueteAtualPorLote[l.id])
-        : lotes.filter(l => !piqueteAtualPorLote[l.id])
+        ? lotes.filter(l => !!piqueteAtualPorLote[l.lote_key])
+        : lotes.filter(l => !piqueteAtualPorLote[l.lote_key])
 
   const piqueteAutoPreenchido = tipo === 'Saída' && !!loteId && !!piqueteAtualPorLote[loteId]
 
@@ -331,7 +336,7 @@ function MovimentacaoForm({
             className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg font-poppins text-sm focus:outline-none focus:border-[var(--primary)] disabled:bg-gray-100 transition bg-white"
           >
             <option value="">{!tipo && !editando ? 'Selecione o tipo primeiro' : 'Selecione um lote...'}</option>
-            {lotesFiltrados.map((l) => <option key={l.id} value={l.id}>{l.nome}</option>)}
+            {lotesFiltrados.map((l) => <option key={l.lote_key} value={l.lote_key}>{l.nome}</option>)}
           </select>
         </div>
 

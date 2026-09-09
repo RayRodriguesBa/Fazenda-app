@@ -1,11 +1,12 @@
 import { createClient } from '@/app/lib/supabase/server'
+import { registrarVersaoLote, resolverLoteVersaoId } from '@/app/lib/lote'
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { lote_id, data, num_animais, peso_medio_kg, tipo_pesagem, observacao, atividades } = body
+    const { lote_id, data, num_animais, peso_medio_kg, atividades } = body
 
     if (!lote_id || !data) {
       return NextResponse.json(
@@ -36,15 +37,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Validação de tipo_pesagem
-    const tipoPesagemValido = ['real', 'simulada']
-    if (tipo_pesagem && !tipoPesagemValido.includes(tipo_pesagem)) {
-      return NextResponse.json(
-        { error: 'Tipo de pesagem inválido. Valores aceitos: real, simulada' },
-        { status: 400 }
-      )
-    }
-
     const temPesagem = num_animais != null || peso_medio_kg != null
     const temAtividades = atividades && Array.isArray(atividades) && atividades.length > 0
 
@@ -55,28 +47,32 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 1. Insert em manejo_lancamentos (se houver dados de pesagem)
+    // 1. Pesagem/contagem = nova versão do lote (SCD2). Roda ANTES das atividades
+    //    para que elas já apontem para a versão recém-aberta nesta data.
     if (temPesagem) {
-      const { error: lancamentoError } = await supabase
-        .from('manejo_lancamentos')
-        .insert({
-          fazenda_id,
-          lote_id,
-          data,
-          num_animais: num_animais != null ? Number(num_animais) : null,
-          peso_medio_kg: peso_medio_kg != null ? Number(peso_medio_kg) : null,
-          tipo_pesagem: tipo_pesagem || 'real',
-          observacao: observacao?.trim() || null
-        })
+      const resultado = await registrarVersaoLote(
+        lote_id,
+        data,
+        num_animais != null ? Number(num_animais) : null,
+        peso_medio_kg != null ? Number(peso_medio_kg) : null,
+        fazenda_id
+      )
 
-      if (lancamentoError) {
-        console.error('Supabase error (manejo_lancamentos):', lancamentoError)
-        return NextResponse.json({ error: 'Erro ao salvar lançamento de pesagem' }, { status: 500 })
+      if (!resultado.ok) {
+        return NextResponse.json({ error: resultado.error }, { status: resultado.status })
       }
     }
 
-    // 2. Insert em manejo_atividade + manejo_atividade_produto (independentes)
+    // 2. Atividades de manejo — apontam para a versão do lote válida na data do fato.
     if (temAtividades) {
+      const loteVersaoId = await resolverLoteVersaoId(lote_id, data, fazenda_id)
+      if (!loteVersaoId) {
+        return NextResponse.json(
+          { error: 'Lote não encontrado nesta fazenda' },
+          { status: 404 }
+        )
+      }
+
       for (const ativ of atividades) {
         if (!ativ.tipo) continue
 
@@ -84,7 +80,7 @@ export async function POST(request: NextRequest) {
           .from('manejo_atividade')
           .insert({
             fazenda_id,
-            lote_id,
+            lote_id: loteVersaoId,
             data,
             tipo: ativ.tipo
           })

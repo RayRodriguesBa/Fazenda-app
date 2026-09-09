@@ -8,11 +8,15 @@ export type RegistroCocho = {
   data: string
   kg: number
   observacao: string | null
+  /** id da VERSÃO do lote vigente na data do fato (SCD2) */
   lote_id: string
+  /** chave de negócio do lote — estável entre versões */
+  lote_key: string
   lote: { nome: string }
 }
 
-type Lote = { id: string; nome: string }
+/** Versão vigente de um lote. `lote_key` é o valor usado nos seletores. */
+type Lote = { id: string; lote_key: string; nome: string }
 type Modo = { tipo: 'criar' } | { tipo: 'editar'; registro: RegistroCocho }
 
 function formatarData(dataISO: string) {
@@ -37,7 +41,8 @@ function CochoForm({
   const inicial = editando ? modo.registro : null
   const hoje = new Date().toISOString().split('T')[0]
 
-  const [loteId, setLoteId] = useState(inicial?.lote_id ?? '')
+  // SCD2: o seletor trabalha com a chave de negócio; a API resolve a versão pela data.
+  const [loteId, setLoteId] = useState(inicial?.lote_key ?? '')
   const [data, setData] = useState(inicial?.data ?? hoje)
   const [kg, setKg] = useState(inicial?.kg?.toString() ?? '')
   const [observacao, setObservacao] = useState(inicial?.observacao ?? '')
@@ -94,7 +99,7 @@ function CochoForm({
           >
             <option value="">Selecione um lote...</option>
             {lotes.map((l) => (
-              <option key={l.id} value={l.id}>{l.nome}</option>
+              <option key={l.lote_key} value={l.lote_key}>{l.nome}</option>
             ))}
           </select>
         </div>
