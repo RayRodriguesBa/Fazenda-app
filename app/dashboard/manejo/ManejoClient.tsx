@@ -8,6 +8,8 @@ export type Lote = {
   id: string
   lote_key: string
   nome: string
+  num_animais?: number | null
+  peso_medio_kg?: number | null
 }
 export type Produto = { id: string; nome: string; categoria: string }
 
@@ -32,6 +34,8 @@ const TIPOS_ATIVIDADE = [
 type FormPayload = {
   lote_id: string
   data: string
+  num_animais?: number | null
+  peso_medio_kg?: number | null
   atividades: {
     tipo: string
     produtos_ids: string[]
@@ -56,6 +60,126 @@ const EMOJI_ATIVIDADE: Record<string, string> = {
   'Vermifugo': '💊',
   'Pour-On': '💧',
   'Vacina': '💉',
+}
+
+// ─── Formulário de Pesagem (abre uma nova versão do lote) ─────
+//
+// SCD2: cada pesagem cria uma versão nova de `lote`; versões são histórico
+// imutável, por isso este formulário só cria — não edita nem exclui.
+//
+// Só é renderizado para o operador: o gestor faz o mesmo pela aba Lotes/Piquetes,
+// à qual o operador não tem acesso.
+function PesagemForm({
+  lotes,
+  onSalvar,
+  onCancelar,
+}: {
+  lotes: Lote[]
+  onSalvar: (dados: { lote_id: string; data: string; num_animais: number | null; peso_medio_kg: number | null }) => Promise<void>
+  onCancelar: () => void
+}) {
+  const hoje = new Date().toISOString().split('T')[0]
+
+  const [loteKey, setLoteKey] = useState('')
+  const [data, setData] = useState(hoje)
+  const [numAnimais, setNumAnimais] = useState('')
+  const [pesoMedio, setPesoMedio] = useState('')
+
+  const [loading, setLoading] = useState(false)
+  const [erro, setErro] = useState('')
+
+  const loteSelecionado = lotes.find((l) => l.lote_key === loteKey) ?? null
+  const informouAlgo = numAnimais !== '' || pesoMedio !== ''
+
+  const isValido =
+    data !== '' &&
+    loteKey !== '' &&
+    informouAlgo &&
+    (!numAnimais || Number(numAnimais) >= 0) &&
+    (!pesoMedio || Number(pesoMedio) > 0)
+
+  const handleLoteChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const nova = e.target.value
+    setLoteKey(nova)
+    const lote = lotes.find((l) => l.lote_key === nova)
+    setNumAnimais(lote?.num_animais?.toString() ?? '')
+    setPesoMedio(lote?.peso_medio_kg?.toString() ?? '')
+  }
+
+  const handleSalvar = async () => {
+    if (!isValido) return
+    setLoading(true)
+    setErro('')
+    try {
+      await onSalvar({
+        lote_id: loteKey,
+        data,
+        num_animais: numAnimais ? Number(numAnimais) : null,
+        peso_medio_kg: pesoMedio ? Number(pesoMedio) : null,
+      })
+    } catch (e: unknown) {
+      setErro(e instanceof Error ? e.message : 'Erro ao salvar')
+    } finally { setLoading(false) }
+  }
+
+  return (
+    <div className="bg-white border-2 border-[var(--primary)] rounded-xl p-5 shadow-sm mb-6 max-w-3xl">
+      <h2 className="text-base font-semibold text-[var(--primary)] font-poppins mb-1">
+        Nova Atualização de Lote
+      </h2>
+      <p className="text-xs text-gray-500 font-poppins mb-4">
+        Registra uma nova versão do lote a partir desta data. O estado anterior é preservado no histórico.
+      </p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-[var(--text)] mb-1 font-poppins">Data <span className="text-[var(--error)]">*</span></label>
+          <input type="date" value={data} onChange={(e) => setData(e.target.value)} max={hoje} disabled={loading}
+            className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg font-poppins text-sm focus:outline-none focus:border-[var(--primary)] disabled:bg-gray-100 transition" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-[var(--text)] mb-1 font-poppins">Lote <span className="text-[var(--error)]">*</span></label>
+          <select value={loteKey} onChange={handleLoteChange} disabled={loading}
+            className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg font-poppins text-sm focus:outline-none focus:border-[var(--primary)] disabled:bg-gray-100 transition bg-white">
+            <option value="">Selecione...</option>
+            {lotes.map((l) => <option key={l.lote_key} value={l.lote_key}>{l.nome}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-[var(--text)] mb-1 font-poppins">
+            Nº de Animais
+            {loteSelecionado?.num_animais != null && (
+              <span className="ml-1 text-xs text-gray-400 font-normal">(atual: {loteSelecionado.num_animais})</span>
+            )}
+          </label>
+          <input type="number" value={numAnimais} onChange={(e) => setNumAnimais(e.target.value)} placeholder="Ex: 50" min="0" disabled={loading}
+            className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg font-poppins text-sm focus:outline-none focus:border-[var(--primary)] disabled:bg-gray-100 transition" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-[var(--text)] mb-1 font-poppins">
+            Peso Médio (kg)
+            {loteSelecionado?.peso_medio_kg != null && (
+              <span className="ml-1 text-xs text-gray-400 font-normal">(atual: {loteSelecionado.peso_medio_kg})</span>
+            )}
+          </label>
+          <input type="number" value={pesoMedio} onChange={(e) => setPesoMedio(e.target.value)} placeholder="Ex: 380" min="0.1" step="0.1" disabled={loading}
+            className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg font-poppins text-sm focus:outline-none focus:border-[var(--primary)] disabled:bg-gray-100 transition" />
+        </div>
+      </div>
+
+      {erro && <div className="mt-3 p-3 bg-red-50 border border-[var(--error)] rounded-lg text-[var(--error)] text-sm font-poppins">{erro}</div>}
+
+      <div className="mt-4 flex gap-3">
+        <button onClick={handleSalvar} disabled={!isValido || loading}
+          className="flex-1 sm:flex-none px-6 py-2.5 bg-[var(--primary)] text-white rounded-lg font-poppins font-semibold text-sm hover:bg-[#1a3009] disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed transition-colors">
+          {loading ? 'Salvando...' : 'Salvar Registro'}
+        </button>
+        <button onClick={onCancelar} disabled={loading}
+          className="flex-1 sm:flex-none px-6 py-2.5 border-2 border-gray-300 text-gray-600 rounded-lg font-poppins font-semibold text-sm hover:border-gray-400 disabled:opacity-50 transition-colors">
+          Cancelar
+        </button>
+      </div>
+    </div>
+  )
 }
 
 // ─── Formulário de Atividade ────────────────────────
@@ -210,16 +334,22 @@ export default function ManejoClient({
   lotes,
   produtosDisponiveis,
   atividadesRegistradas,
+  isGestor,
   filtros
 }: {
   lotes: Lote[]
   produtosDisponiveis: Produto[]
   atividadesRegistradas: RegistroAtividade[]
+  isGestor: boolean
   filtros: Filtros
 }) {
   const router = useRouter()
-  const [criando, setCriando] = useState(false)
+  const [criando, setCriando] = useState<'atividade' | 'pesagem' | null>(null)
   const [modoEditar, setModoEditar] = useState<ModoFormAtividade | null>(null)
+
+  // O gestor registra pesagem pela aba Lotes/Piquetes, à qual o operador não tem
+  // acesso — por isso o formulário de pesagem daqui é exclusivo do operador.
+  const podeLancarPesagem = !isGestor
 
   // Filtros locais
   const [dataInicio, setDataInicio] = useState(filtros.de || '')
@@ -240,6 +370,20 @@ export default function ManejoClient({
   }
 
   // ── Handlers ──
+  const handleCriarPesagem = async (dados: { lote_id: string; data: string; num_animais: number | null; peso_medio_kg: number | null }) => {
+    const payload: FormPayload = {
+      lote_id: dados.lote_id, data: dados.data,
+      num_animais: dados.num_animais, peso_medio_kg: dados.peso_medio_kg,
+      atividades: []
+    }
+    const res = await fetch('/api/manejo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+    const json = await res.json()
+    if (!res.ok) throw new Error(json.error)
+    mostrarSucesso('Nova versão do lote registrada com sucesso!')
+    setCriando(null)
+    router.refresh()
+  }
+
   const handleCriarAtividade = async (dados: { lote_id: string; data: string; tipo: string; produtos_ids: string[] }) => {
     const payload: FormPayload = {
       lote_id: dados.lote_id, data: dados.data,
@@ -249,7 +393,7 @@ export default function ManejoClient({
     const json = await res.json()
     if (!res.ok) throw new Error(json.error)
     mostrarSucesso('Atividade registrada com sucesso!')
-    setCriando(false)
+    setCriando(null)
     router.refresh()
   }
 
@@ -296,30 +440,46 @@ export default function ManejoClient({
         </div>
       )}
 
-      {/* Botão para abrir o formulário de criação */}
-      {!criando && modoEditar === null && (
+      {/* Botões para abrir os formulários de criação */}
+      {criando === null && modoEditar === null && (
         <div className="flex flex-wrap gap-3 mb-6">
           <button
-            onClick={() => setCriando(true)}
+            onClick={() => setCriando('atividade')}
             className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-2.5 bg-[var(--primary)] text-white rounded-lg font-poppins font-semibold hover:bg-[#1a3009] transition-colors"
           >
             + Atividade
           </button>
+          {podeLancarPesagem && (
+            <button
+              onClick={() => setCriando('pesagem')}
+              className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-2.5 bg-white border-2 border-[var(--primary)] text-[var(--primary)] rounded-lg font-poppins font-semibold hover:bg-gray-50 transition-colors"
+            >
+              + Atualização de Lote
+            </button>
+          )}
         </div>
       )}
 
-      {criando && (
+      {criando === 'atividade' && (
         <AtividadeForm
           modo={{ tipo: 'criar' }}
           lotes={lotes}
           produtosDisponiveis={produtosDisponiveis}
           onSalvar={handleCriarAtividade}
-          onCancelar={() => setCriando(false)}
+          onCancelar={() => setCriando(null)}
+        />
+      )}
+
+      {criando === 'pesagem' && podeLancarPesagem && (
+        <PesagemForm
+          lotes={lotes}
+          onSalvar={handleCriarPesagem}
+          onCancelar={() => setCriando(null)}
         />
       )}
 
       {/* Filtros */}
-      {!criando && modoEditar === null && (temRegistros || temFiltroAtivo) && (
+      {criando === null && modoEditar === null && (temRegistros || temFiltroAtivo) && (
         <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 mb-6">
           <div className="flex flex-wrap items-end gap-3">
             <div className="flex-1 min-w-[120px]">
@@ -357,7 +517,7 @@ export default function ManejoClient({
       )}
 
       {/* Atividades Realizadas */}
-      {!criando && temRegistros && (
+      {criando === null && temRegistros && (
         <div>
           <h2 className="text-base font-semibold text-[var(--text)] font-poppins mb-3 flex items-center gap-2">
             🩺 Atividades Realizadas
@@ -401,7 +561,7 @@ export default function ManejoClient({
       )}
 
       {/* Estado vazio */}
-      {!criando && !temRegistros && (
+      {criando === null && !temRegistros && (
         <div className="text-center py-16 text-gray-400 font-poppins">
           <p className="text-4xl mb-3">🐄</p>
           <p className="text-base">{temFiltroAtivo ? 'Nenhuma atividade encontrada para os filtros selecionados.' : 'Nenhuma atividade de manejo registrada.'}</p>

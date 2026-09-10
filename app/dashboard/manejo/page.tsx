@@ -8,6 +8,8 @@ type LinhaVersao = {
   id: string
   lote_key: string
   nome: string
+  num_animais: number | null
+  peso_medio_kg: number | null
   valido_ate: string | null
   ativo: boolean
 }
@@ -22,6 +24,16 @@ export default async function ManejoPage(props: {
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
+
+  // O gestor registra pesagem pela aba Lotes/Piquetes. O operador não tem acesso
+  // àquela aba, então o formulário de pesagem só aparece aqui para ele.
+  const { data: perfil } = await supabase
+    .from('perfil')
+    .select('perfil')
+    .eq('id', user.id)
+    .single()
+
+  const isGestor = perfil?.perfil === 'gestor'
 
   const cookieStore = await cookies()
   const fazendaId = cookieStore.get('fazenda_id')?.value
@@ -38,7 +50,7 @@ export default async function ManejoPage(props: {
     // atividades de volta para a chave de negócio.
     const { data: linhasVersao } = await admin
       .from('lote')
-      .select('id, lote_key, nome, valido_ate, ativo')
+      .select('id, lote_key, nome, num_animais, peso_medio_kg, valido_ate, ativo')
       .eq('fazenda_id', fazendaId)
 
     const todasVersoes = (linhasVersao ?? []) as LinhaVersao[]
@@ -49,6 +61,8 @@ export default async function ManejoPage(props: {
         id: v.id,
         lote_key: v.lote_key,
         nome: v.nome,
+        num_animais: v.num_animais,
+        peso_medio_kg: v.peso_medio_kg,
       }))
       .sort((a, b) => a.nome.localeCompare(b.nome))
 
@@ -117,6 +131,7 @@ export default async function ManejoPage(props: {
         lotes={lotes}
         produtosDisponiveis={produtos}
         atividadesRegistradas={atividades}
+        isGestor={isGestor}
         filtros={{ de, ate, lote }}
       />
     </div>
